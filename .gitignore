@@ -1,0 +1,7 @@
+node_modules/
+.dsh-e2e-home/
+.mnemon/
+e2e-artifacts/
+tools/*.js
+/tmp/
+*.tgz

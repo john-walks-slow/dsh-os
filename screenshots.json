@@ -1,0 +1,26 @@
+[
+  {
+    "path": "screenshots/home-rain.png",
+    "description": "DSH-OS 默认蓝调主题 + 稀疏字符雨背景 + 终端化侧边栏与输入框皮肤"
+  },
+  {
+    "path": "screenshots/home-dshchan.png",
+    "description": "3D 旋转 DSH 娘（鲸鱼娘）全息投影背景"
+  },
+  {
+    "path": "screenshots/home-field.png",
+    "description": "等高线拓扑动效背景（field pattern）模式"
+  },
+  {
+    "path": "screenshots/settings.png",
+    "description": "内置设置页：背景动效、主题色、开机自检与原生皮肤开关"
+  },
+  {
+    "path": "screenshots/boot.png",
+    "description": "开机自检序列（POST boot sequence）动效"
+  },
+  {
+    "path": "screenshots/home-mobile.png",
+    "description": "窄屏移动端自适应（收起窗格保留高密度状态条）"
+  }
+]
