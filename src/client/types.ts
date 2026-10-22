@@ -24,6 +24,8 @@ export interface Geometry {
 	col: { x: number; y: number; w: number; h: number }
 	/** hero（输入区 + 标题）的矩形，用作字符场的"让位区"。 */
 	hero: { x: number; y: number; w: number; h: number } | null
+	/** 会话视图滚动区的矩形（在会话里才有），遥测条贴着它的顶边。 */
+	session: { x: number; y: number; w: number; h: number } | null
 	/** 视口尺寸。 */
 	view: { w: number; h: number }
 }

@@ -8,14 +8,17 @@
  * 会挡住任务栏 chip；先把弹窗关掉（关不掉就摘掉它自己）再操作。
  */
 import { chromium } from '/usr/lib/node_modules/@playwright/cli/node_modules/playwright-core/index.mjs'
-import { seedShowcase } from './lib/fixtures.mjs'
+import { seedConversation, seedShowcase } from './lib/fixtures.mjs'
 
 const port = process.env.DSH_E2E_PORT
-const home = process.env.DSH_E2E_HOME
-if (!port || !home) throw new Error('DSH_E2E_PORT / DSH_E2E_HOME 未注入：请用 dsh-e2e run 执行')
+// dsh-e2e run 只注入 DSH_E2E_PORT / DSH_E2E_TOKEN；home 就是 worktree 下的隔离目录
+const home = process.env.DSH_E2E_HOME ?? new URL('../.dsh-e2e-home', import.meta.url).pathname
+if (!port) throw new Error('DSH_E2E_PORT 未注入：请用 dsh-e2e run 执行')
 const url = `http://127.0.0.1:${port}/?token=${process.env.DSH_E2E_TOKEN || 'e2etest'}`
 
 seedShowcase(home)
+// 搬一段本机真实会话日志进来：截图里的消息流才会是真的（本机没有历史就跳过）
+const conversation = seedConversation(home)
 // 索引每 15s 增量刷新一轮，等它把新夹具吃进去再拍照
 {
 	const deadline = Date.now() + 40_000
@@ -81,6 +84,63 @@ for (const shot of SHOTS) {
 	await page.screenshot({ path: `screenshots/${shot.name}.png` })
 	console.log(`✓ screenshots/${shot.name}.png`)
 	await context.close()
+}
+
+// 会话视图：真主题要在"干活时"看——消息流、代码块、工具卡与遥测条
+if (conversation) {
+	for (const shot of [
+		{ name: 'session-dark', chip: 'DARK' },
+		{ name: 'session-light', chip: 'LIGHT' },
+	]) {
+		const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
+		await context.addInitScript(() => {
+			window.sessionStorage.setItem('dsh-os:booted', '1')
+			localStorage.setItem('dsh-os:settings', JSON.stringify({ enabled: true, skin: true, strip: true, boot: false, pattern: 'rain', tone: 'auto', scope: 'space' }))
+		})
+		const page = await context.newPage()
+		await page.goto(url, { waitUntil: 'domcontentloaded' })
+		await page.waitForTimeout(6500)
+		await clearNotice(page)
+		// 深色那张不展开明细卡：正文完整可见才是"不打扰"的证明（浅色那张展示卡片）
+		if (shot.chip === 'DARK') {
+			await page
+				.locator('.dos-taskbar')
+				.getByRole('button', { name: 'DARK', exact: true })
+				.click({ timeout: 8000 })
+				.catch(() => null)
+			await page.waitForTimeout(1600)
+		}
+		// 侧边栏会话行得挑到那段真日志：列表按标题排序，逐个点开直到遥测条出现
+		// （遥测条只在"非空白会话"里渲染，正是我们要的画面）
+		let opened = false
+		// 标题长的那个就是搬进来的真日志（短标题多半是 "hi" 这类空白/失败会话）
+		const order = await page.evaluate(() =>
+			[...document.querySelectorAll('[class*="_sessionRow"]')]
+				.map((row, index) => ({ index, length: (row.textContent ?? '').length }))
+				.sort((left, right) => right.length - left.length)
+				.map((entry) => entry.index),
+		)
+		for (const index of order.slice(0, 6)) {
+			if (opened) break
+			await page.locator('[class*="_sessionRow"]').nth(index).click({ force: true, timeout: 4000 }).catch(() => null)
+			opened = await page.waitForSelector('.dos-strip-bar', { timeout: 12_000 }).then(() => true).catch(() => false)
+		}
+		if (!opened) {
+			console.log('· 没找到非空白会话（先跑 node e2e/seed-conversation.mjs 并重启实例），跳过会话截图')
+			await context.close()
+			break
+		}
+		await page.waitForTimeout(6000)
+		if (shot.chip === 'LIGHT') {
+			await page.locator('.dos-strip-toggle').click({ timeout: 5000 }).catch(() => null)
+			await page.waitForTimeout(600)
+			await page.locator('.dos-strip-seg-switch').getByRole('button', { name: 'LIGHT', exact: true }).click({ timeout: 5000 }).catch(() => null)
+		}
+		await page.waitForTimeout(2200)
+		await page.screenshot({ path: `screenshots/${shot.name}.png` })
+		console.log(`✓ screenshots/${shot.name}.png`)
+		await context.close()
+	}
 }
 
 // 开机自检：这张不跳过 POST 序列，等它演到中段

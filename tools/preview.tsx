@@ -8,7 +8,8 @@ import { createGlyphField } from '../src/client/field/engine'
 import { Desktop } from '../src/client/os/Desktop'
 import { Boot } from '../src/client/os/Boot'
 import { OsSettingsPanel } from '../src/client/os/settings-panel'
-import { inkPalette, paletteFor, paletteVars, SettingsStore, type Settings } from '../src/client/settings'
+import { accentOf, SettingsStore, type Settings } from '../src/client/settings'
+import { inkPaletteFor, skinVars } from '../src/client/skin/palette'
 import { CSS, STYLE_ID } from '../src/client/styles'
 import type { Geometry, HarnessPayload, HarnessSessionRow, LogLine, MetricsPayload, ModelUsageRow, ScopeStats } from '../src/client/types'
 
@@ -37,9 +38,10 @@ store.value = {
 }
 const settings = store.value
 const tone = settings.tone === 'auto' ? 'dark' : settings.tone
+const accent = accentOf(settings)
 document.documentElement.dataset.dosTone = tone
-const palette = paletteFor(settings, tone)
-for (const [property, value] of Object.entries(paletteVars(palette))) document.documentElement.style.setProperty(property, value)
+document.documentElement.classList.add('dsh-os-theme')
+for (const [property, value] of Object.entries(skinVars(tone, accent))) document.documentElement.style.setProperty(property, value)
 
 // ?win=1 模拟没有 /proc、/sys 的平台（Windows/macOS）下的布局
 const winMode = params.get('win') === '1'
@@ -167,7 +169,7 @@ function App(): JSX.Element {
     if (!canvasRef.current || settings.pattern === 'off') return
     const field = createGlyphField(canvasRef.current, { pattern: settings.pattern })
     field.setSurface(tone)
-    field.setPalette(inkPalette(palette), palette.key)
+    field.setPalette(inkPaletteFor(tone, accent), accent)
     field.setSignal({ cpu: metrics.cpu.total, mem: metrics.mem.percent, rx: metrics.net.rxBps, tx: metrics.net.txBps, load: metrics.load[0], running: 1 })
     field.setClearRect({ x: hero.x - 24, y: hero.y - 24, w: hero.w + 48, h: hero.h + 48 })
     field.setStage({ x: 0, y: 46, w: view.w, h: view.h - 120 })

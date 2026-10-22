@@ -169,6 +169,54 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1280, height: 800 }, 
 await page.setViewportSize({ width: 1440, height: 900 })
 await page.waitForTimeout(1200)
 
+console.log('app skin')
+const skin = await page.evaluate(() => {
+	const body = getComputedStyle(document.body)
+	return {
+		theme: document.documentElement.classList.contains('dsh-os-theme'),
+		tone: document.documentElement.dataset.dosTone,
+		inlineVars: (document.body.getAttribute('style') ?? '').split(';').filter((part) => part.includes('--dsw-')).length,
+		bg: body.getPropertyValue('--dsw-alias-bg-base').trim(),
+		radius: body.getPropertyValue('--dsw-radius-lg').trim(),
+		bubble: body.getPropertyValue('--dsw-specific-bubble').trim(),
+		syntax: body.getPropertyValue('--shiki-token-keyword').trim(),
+		sidebar: body.getPropertyValue('--dsw-specific-sidebar-fill').trim(),
+	}
+})
+const expect = skin.tone === 'dark' ? { bg: '#070a10', sidebar: '#080c14' } : { bg: '#f4f6fa', sidebar: '#eef1f7' }
+check('全应用主题层已挂上', skin.theme && (skin.tone === 'dark' || skin.tone === 'light'), `theme=${skin.theme} tone=${skin.tone}`)
+check('官方 token 覆盖生效（>100 个词条）', skin.inlineVars > 100, `vars=${skin.inlineVars}`)
+check(
+	'底色/圆角/气泡/语法高亮都换成我们的取值',
+	skin.bg === expect.bg && skin.radius === '6px' && skin.bubble.startsWith('rgba(') && skin.syntax.length > 0,
+	JSON.stringify(skin),
+)
+check('侧边栏底色跟随明暗两套墨', skin.sidebar === expect.sidebar, `${skin.tone} → ${skin.sidebar}`)
+
+// 对比度哨兵：找出"背景和文字几乎一样亮"的可见文本（写过反色 token 就会当场露馅）
+const collapse = await page.evaluate(() => {
+	const luminance = (color) => {
+		const parts = (color.match(/[\d.]+/g) ?? []).map(Number)
+		const [r, g, b, a = 1] = parts
+		return (0.2126 * r + 0.7152 * g + 0.0722 * b) * a
+	}
+	const bad = []
+	for (const element of document.querySelectorAll('body *')) {
+		if (element.children.length > 0) continue
+		const text = (element.textContent ?? '').trim()
+		if (!text) continue
+		const rect = element.getBoundingClientRect()
+		if (rect.width < 6 || rect.height < 6) continue
+		const style = getComputedStyle(element)
+		const background = luminance(style.backgroundColor)
+		if (background <= 0) continue
+		if (Math.abs(background - luminance(style.color)) < 40) bad.push(`${text.slice(0, 18)} @${String(element.className).slice(0, 24)}`)
+		if (bad.length > 4) break
+	}
+	return bad
+})
+check('没有"背景与文字同亮"的塌陷文本', collapse.length === 0, collapse.join(' | '))
+
 console.log('ledger scope')
 /** 「SESSIONS · RECENT」面板标题右侧的数字 = 当前口径下的会话条数。 */
 const recentCount = () =>

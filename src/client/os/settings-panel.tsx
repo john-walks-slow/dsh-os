@@ -52,13 +52,22 @@ export function OsSettingsPanel({ store }: OsSettingsPanelProps): JSX.Element {
 			<header className="dso-header">
 				<h2>DeepSeek Harness OS</h2>
 				<p>
-					首页桌面层：字符场背景、开机自检、深浅色墨色与参数监控。桌面上的数字全部来自本机真实读数与会话投影缓存，这些选项只改观感，不动会话数据。
+					dsh-os 是一套覆盖整个 GUI 的主题：官方主题 token 负责配色与圆角，首页桌面层负责"停机时"的仪表盘，会话里的遥测条负责"干活时"的读数。所有数字来自本机真实读数与会话投影缓存，这些选项只改观感，不动会话数据。
 				</p>
 			</header>
 
 			<div className="dso-group">
+				<Field
+					title="全应用主题"
+					hint="接管 DSH 官方主题 token：会话流、侧边栏、代码块、弹窗、菜单一起换墨（深浅两套都由宿主明暗决定）。"
+				>
+					<Toggle label="全应用主题" on={settings.skin} onChange={(skin) => store.set({ skin })} />
+				</Field>
 				<Field title="首页桌面层" hint="在主视图没有会话时接管首页；进入会话后自动退回普通界面。">
 					<Toggle label="首页桌面层" on={settings.enabled} onChange={(enabled) => store.set({ enabled })} />
+				</Field>
+				<Field title="会话遥测条" hint="会话视图顶端一条 21px 状态带：模型、上下文压力、用量、缓存与解码速度，点箭头展开明细。">
+					<Toggle label="会话遥测条" on={settings.strip} onChange={(strip) => store.set({ strip })} />
 				</Field>
 				<Field title="开机自检" hint="首次进入标签页时播放 POST 序列，可按任意键跳过。">
 					<Toggle label="开机自检" on={settings.boot} onChange={(boot) => store.set({ boot })} />

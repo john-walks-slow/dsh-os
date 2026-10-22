@@ -19,7 +19,9 @@ import { emptyHarness, fetchHarness } from './harness'
 import { Boot } from './os/Boot'
 import { Desktop, type DesktopActions } from './os/Desktop'
 import { OsSettingsPanel } from './os/settings-panel'
-import { inkPalette, paletteFor, paletteVars, SettingsStore, type Settings } from './settings'
+import { accentOf, SettingsStore, type Settings } from './settings'
+import { inkPaletteFor, skinVars, themeLayer } from './skin/palette'
+import { readStrip, SessionStrip, type StripData } from './skin/strip'
 import { CSS, STYLE_ID } from './styles'
 import { HostTheme, resolveTone } from './theme'
 import type { Geometry, HarnessPayload, LedgerWindow, LogLine, MetricsPayload } from './types'
@@ -38,7 +40,7 @@ interface SessionsSource {
 		getSnapshot: () => {
 			ids: string[]
 			byId: Record<string, any>
-			projectionsBySession?: Record<string, { values?: any } | undefined>
+			projectionsBySession?: Record<string, { values?: any; state?: string } | undefined>
 		}
 		subscribe: (listener: () => void) => () => void
 	}
@@ -49,7 +51,7 @@ interface ClientContext {
 		inject: (slot: string, factory: () => unknown) => () => void
 		register: (entry: Record<string, unknown>, component: unknown) => () => void
 	}
-	sessions: SessionsSource
+	sessions: SessionsSource & { refreshProjections?: (id: string) => Promise<void> }
 	uiWorkspace: { openSession: (id: string) => void }
 	theme?: { getTheme: () => { preference: string; active: { colorScheme: 'light' | 'dark' } }; setTheme: (id: string) => void }
 	on?: (event: string, listener: (snapshot: any) => void) => unknown
@@ -111,7 +113,7 @@ function measure(): Geometry {
 		return { x: rect.x, y: rect.y, w: rect.width, h: rect.height }
 	}
 	const col = box(colEl) ?? { x: 0, y: 0, w: view.w, h: view.h }
-	return { col, hero: box(heroEl), view }
+	return { col, hero: box(heroEl), session: box(document.querySelector('[data-conversation-scroll]')), view }
 }
 
 function prefersReducedMotion(): boolean {
@@ -221,22 +223,32 @@ class Session {
 		clearPaintLayers(false)
 	}
 
-	/** 明暗与主色写进 CSS 变量；字符场同步换图集与底纸。 */
+	/** 全应用皮肤 + 我们自己的变量；字符场同步换图集与底纸。 */
 	applyTheme(): void {
 		const root = document.documentElement
 		const settings = this.settings.value
 		const tone = resolveTone(settings.tone, this.theme.tone)
-		const palette = paletteFor(settings, tone)
+		const accent = accentOf(settings)
 		root.dataset.dosTone = tone
-		if (this.active) {
-			for (const [property, value] of Object.entries(paletteVars(palette))) root.style.setProperty(property, value)
+		root.classList.toggle('dsh-os-theme', settings.skin)
+		root.classList.toggle('dsh-os-skin-composer', settings.skinComposer)
+
+		if (settings.skin && this.theme.skin) {
+			this.theme.applySkin(themeLayer(accent))
 		} else {
-			for (const property of Object.keys(paletteVars(palette))) root.style.removeProperty(property)
-			root.removeAttribute('data-dos-tone')
+			this.theme.clearSkin()
 		}
-		root.classList.toggle('dsh-os-skin-composer', this.active && settings.skinComposer)
+
+		const vars = skinVars(tone, accent)
+		if (settings.enabled || settings.skin) {
+			for (const [property, value] of Object.entries(vars)) root.style.setProperty(property, value)
+		} else {
+			for (const property of Object.keys(vars)) root.style.removeProperty(property)
+		}
+		if (!settings.enabled && !settings.skin) root.removeAttribute('data-dos-tone')
+
 		this.field?.setSurface(tone)
-		this.field?.setPalette(inkPalette(palette), palette.key)
+		this.field?.setPalette(inkPaletteFor(tone, accent), accent)
 	}
 
 	/** 让字符场跟随图案设置：关就卸、换图案就重建。 */
@@ -259,9 +271,9 @@ class Session {
 		this.field = createGlyphField(canvas, { pattern, reduced: prefersReducedMotion() })
 		const settings = this.settings.value
 		const tone = resolveTone(settings.tone, this.theme.tone)
-		const palette = paletteFor(settings, tone)
+		const accent = accentOf(settings)
 		this.field.setSurface(tone)
-		this.field.setPalette(inkPalette(palette), palette.key)
+		this.field.setPalette(inkPaletteFor(tone, accent), accent)
 		const geometry = measure()
 		this.field.setClearRect(heroClearRect(geometry))
 		this.field.setStage(stageRect(geometry))
@@ -294,6 +306,8 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 	const [ledgerWindow, setLedgerWindow] = React.useState<LedgerWindow>('all')
 	const [home, setHome] = React.useState(() => isHome(session.ctx.sessions.list.getSnapshot()))
 	const [workspace, setWorkspace] = React.useState(() => currentWorkspace(session.ctx.sessions.list.getSnapshot()))
+	const [strip, setStrip] = React.useState<StripData | null>(null)
+	const [activeId, setActiveId] = React.useState<string | null>(() => currentSessionId(session.ctx.sessions.list.getSnapshot()))
 	const [booting, setBooting] = React.useState(false)
 	const [, forceLog] = React.useState(0)
 	const logger = React.useRef(makeLogger())
@@ -305,6 +319,7 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 		sessions: 0,
 	})
 	const live = home && settings.enabled
+	const showStrip = !home && settings.strip && strip !== null
 	const liveRef = React.useRef(live)
 	liveRef.current = live
 
@@ -368,10 +383,57 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 			const snapshot = source.getSnapshot()
 			setHome(isHome(snapshot))
 			setWorkspace(currentWorkspace(snapshot))
+			const id = currentSessionId(snapshot)
+			setActiveId(id)
+			const row = id ? snapshot.byId[id] : null
+			const projections = id ? snapshot.projectionsBySession?.[id]?.values : undefined
+			setStrip(
+				row
+					? readStrip({
+							...row,
+							projectionValues: { ...(row.projectionValues ?? {}), ...(projections ?? {}) },
+						} as never)
+					: null,
+			)
 		}
 		update()
 		return source.subscribe(update)
 	}, [session])
+
+	// 打开中的会话：请宿主把昂贵投影（tokenUsage / contextPressure / sessionStats）
+	// 算出来——列表级快照只带廉价键，遥测条要的是这些。
+	React.useEffect(() => {
+		if (home || !activeId) return
+		const poke = (): void => {
+			void session.ctx.sessions.refreshProjections?.(activeId).catch(() => undefined)
+		}
+		poke()
+		const timer = window.setInterval(poke, 20_000)
+		return () => window.clearInterval(timer)
+	}, [home, activeId, session])
+
+	// 遥测条出现时给会话流让出高度（结构样式按这个属性加 padding）。
+	React.useEffect(() => {
+		document.documentElement.toggleAttribute('data-dos-strip', showStrip)
+		return () => document.documentElement.removeAttribute('data-dos-strip')
+	}, [showStrip])
+
+	// 调试/测试钩子：把当前会话的投影状态摊出来（遥测条的取数是否到位一眼可查）。
+	React.useEffect(() => {
+		;(window as typeof window & { __dshOsStrip?: () => unknown }).__dshOsStrip = () => {
+			const snapshot = session.ctx.sessions.list.getSnapshot()
+			const id = currentSessionId(snapshot)
+			const block = id ? snapshot.projectionsBySession?.[id] : undefined
+			return {
+				activeId: id,
+				stripReady: strip !== null,
+				state: block?.state ?? null,
+				keys: block?.values ? Object.keys(block.values) : [],
+				tokenUsage: (block?.values as Record<string, unknown> | undefined)?.tokenUsage ?? null,
+				hasRefresh: typeof session.ctx.sessions.refreshProjections === 'function',
+			}
+		}
+	}, [session, strip])
 
 	// 秒表：时钟与相对时间共用。
 	React.useEffect(() => {
@@ -400,7 +462,7 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 		if (live) session.activate()
 		else session.deactivate()
 		session.applyTheme()
-	}, [live, settings.enabled, settings.accent, settings.custom, settings.tone, settings.skinComposer, session, hostTheme.tone])
+	}, [live, settings.enabled, settings.skin, settings.accent, settings.custom, settings.tone, settings.skinComposer, session, hostTheme.tone])
 
 	// 图案切换：重建字符场。
 	React.useEffect(() => {
@@ -490,6 +552,27 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 
 	return (
 		<>
+			{showStrip && geometry.session && (
+				<div
+					className="dos-strip-seat"
+					style={{
+						position: 'fixed',
+						left: Math.round(geometry.session.x + 6),
+						top: Math.round(geometry.session.y + 3),
+						width: Math.round(geometry.session.w - 12),
+						pointerEvents: 'none',
+						zIndex: 21,
+					}}
+				>
+					<SessionStrip
+						data={strip}
+						now={now}
+						tone={settings.tone}
+						onTone={(tone) => actions.setTone(tone)}
+						onOpenSettings={openHostSettings}
+					/>
+				</div>
+			)}
 			<Desktop
 				metrics={metrics}
 				harness={harness}
@@ -593,6 +676,7 @@ export function apply(ctx: ClientContext): void {
 		field: Boolean(session.field),
 		tone: resolveTone(settings.value.tone, theme.tone),
 		hostTone: theme.tone,
+		skinLayer: theme.skin,
 	})
 	if (ctx.effect) ctx.effect(() => dispose, 'dsh-os: desktop')
 }

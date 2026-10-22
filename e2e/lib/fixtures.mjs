@@ -9,7 +9,8 @@
  * @module dsh-os/e2e/fixtures
  */
 
-import { mkdirSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 export const HOME_WORKSPACE = '/root/projects/dsh-os'
@@ -229,3 +230,64 @@ export function seedShowcase(home) {
 		utimesSync(path, stamp, stamp)
 	}
 }
+
+/**
+ * 把一段**真实会话日志**搬进隔离 home，好让截图里出现真正的消息流。
+ *
+ * 会话在 DSH 里是"日志文件 + 工作区登记"两处：日志要在
+ * `sessions/<cwd key>/<id>/`，id 还要出现在 `storages/workspace.json` 的
+ * `sessionIds` 里，否则侧边栏根本不列。只有本机存在该工作区的历史时才做得到，
+ * 所以找不到就静默跳过——截图脚本允许在没有历史的环境里降级。
+ */
+export function seedConversation(home, workspace = HOME_WORKSPACE) {
+	// 目录名是 DSH 对 cwd 的编码，规则不值得在客户端复刻一遍：
+	// 隔离 home 里已经有一个同名目录（它自己的工作区），直接拿来当 key。
+	const key = existingSessionKey(home)
+	if (!key) return null
+	const source = join(homedir(), '.dsh', 'sessions', key)
+	if (!existsSync(source)) return null
+	const candidates = readdirSync(source)
+		.filter((name) => name.startsWith('session-'))
+		.map((name) => {
+			const dir = join(source, name)
+			const log = join(dir, 'session.v4.jsonl.zstd')
+			return existsSync(log) ? { name, dir, log } : null
+		})
+		.filter(Boolean)
+		.sort((left, right) => statSize(right.log) - statSize(left.log))
+	if (candidates.length === 0) return null
+	const picked = candidates[0]
+	const target = join(home, 'sessions', key, picked.name)
+	mkdirSync(target, { recursive: true })
+	copyFileSync(picked.log, join(target, 'session.v4.jsonl.zstd'))
+	registerSession(home, picked.name)
+	return picked.name
+}
+
+/** 隔离 home 里装会话的那个目录名（DSH 对 cwd 的编码）。 */
+function existingSessionKey(home) {
+	const root = join(home, 'sessions')
+	if (!existsSync(root)) return null
+	return readdirSync(root).find((name) => name.startsWith('-')) ?? null
+}
+
+function statSize(path) {
+	try {
+		return readFileSync(path).length
+	} catch {
+		return 0
+	}
+}
+
+/** 把会话 id 登记进隔离 home 的工作区表（顺序即 DSH 的展示顺序）。 */
+function registerSession(home, sessionId) {
+	const path = join(home, 'storages', 'workspace.json')
+	if (!existsSync(path)) return
+	const table = JSON.parse(readFileSync(path, 'utf8'))
+	for (const record of Object.values(table.tables?.workspaces ?? {})) {
+		if (record.path !== HOME_WORKSPACE) continue
+		if (!record.sessionIds.includes(sessionId)) record.sessionIds.push(sessionId)
+	}
+	writeFileSync(path, JSON.stringify(table, null, 2))
+}
+

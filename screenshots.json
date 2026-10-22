@@ -1,5 +1,13 @@
 [
   {
+    "path": "screenshots/session-dark.png",
+    "description": "会话视图（深色）：全应用主题换墨后的消息流、代码块与工具卡，顶部是会话遥测条"
+  },
+  {
+    "path": "screenshots/session-light.png",
+    "description": "会话视图（浅色）：遥测条明细卡展开，显示上下文构成、缓存读写与解码速度"
+  },
+  {
     "path": "screenshots/home-rain.png",
     "description": "深色桌面：稀疏字符雨背景 + SYS·MONITOR / WORKSPACE·OVERVIEW / SESSIONS·RECENT / MODEL·LEDGER 四块窗格与任务栏"
   },

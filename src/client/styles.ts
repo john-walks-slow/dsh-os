@@ -394,4 +394,108 @@ html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_add"] 
 @media (max-width: 620px) {
   .dso-patterns { grid-template-columns: 1fr 1fr; }
 }
+/* ══ 全应用主题：结构性皮肤 ═════════════════════════════════════════════
+ *
+ * 颜色与圆角绝大多数由 settings → skin/palette 的官方 token 覆盖层解决
+ * （body 上的 inline CSS 变量）。这里只处理 token 覆盖不到、或需要"加一层
+ * 我们自己的话术"的地方：
+ *   1. 选区、滚动条、焦点环这类全局空白；
+ *   2. chrome 排版（分组标签、New Session 用等宽大写字距）；
+ *   3. 几处官方硬编码颜色（浮层浅字）在浅色纸面上的兜底；
+ *   4. 会话内遥测条（我们自己的元件）。
+ *
+ * 铁律：只碰 color / background / border-color / font / letter-spacing /
+ * text-transform / border-radius；不碰 padding / margin / width / height /
+ * position / display / flex / grid（侧边栏的布局契约见
+ * docs/references/261022-dsh-theme-surface-map.md 第 7.3 节）。
+ */
+html.dsh-os-theme ::selection { background: color-mix(in srgb, var(--dos-cy) 32%, transparent); color: var(--dos-ink); }
+html.dsh-os-theme * { scrollbar-color: var(--dos-cy-dim) transparent; }
+html.dsh-os-theme ::-webkit-scrollbar { width: 8px; height: 8px; }
+html.dsh-os-theme ::-webkit-scrollbar-track { background: transparent; }
+html.dsh-os-theme ::-webkit-scrollbar-thumb { background: var(--dos-cy-dim); border-radius: 0; }
+html.dsh-os-theme ::-webkit-scrollbar-thumb:hover { background: var(--dos-cy); }
+html.dsh-os-theme :focus-visible { outline-color: var(--dos-cy); }
+
+/* chrome 排版：全大写的等宽标签，是"仪表盘"语汇的来源 */
+html.dsh-os-theme [class*="_sectionLabel"],
+html.dsh-os-theme [class*="_panelTitle"],
+html.dsh-os-theme [class*="_newSessionContent"] {
+  font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+}
+
+/* 悬浮卡在浅色纸面上要改成深字（官方这四处写死了浅字，假定浮层是深色） */
+html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverTitle"] { color: var(--dos-ink); }
+html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverPath"],
+html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverTime"],
+html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverStatus"] { color: var(--dos-ink-dim); }
+
+/* 会话内遥测条：给会话流让出条子高度，条子本身是浮在留白上的玻璃带 */
+html.dsh-os-theme[data-dos-strip] [data-conversation-scroll] { padding-top: 26px; }
+
+.dos-strip { position: absolute; inset: 0 0 auto 0; pointer-events: none; z-index: 6; }
+.dos-strip-bar {
+  display: flex; align-items: center; gap: 6px; height: 21px; padding: 0 8px;
+  pointer-events: auto;
+  font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK SC", monospace;
+  font-size: 10px; line-height: 1; letter-spacing: .06em;
+  color: var(--dos-ink-dim);
+  background: var(--dos-strip-bg);
+  border: 1px solid var(--dos-panel-line); border-top: none;
+  backdrop-filter: blur(7px) saturate(1.1);
+  cursor: default;
+}
+.dos-strip-bar .dos-strip-model { color: var(--dos-cy); letter-spacing: .12em; text-transform: uppercase; }
+.dos-strip-dim { color: color-mix(in srgb, var(--dos-ink) 58%, transparent); }
+.dos-strip-num { color: var(--dos-ink); font-variant-numeric: tabular-nums; }
+.dos-strip-num[data-tone="warn"] { color: var(--dos-amber); }
+.dos-strip-num[data-tone="hot"] { color: var(--dos-mag); }
+.dos-strip-sep { color: var(--dos-panel-line); }
+.dos-strip-spacer { flex: 1; }
+.dos-strip-gauge { font-size: 9px; letter-spacing: 0; }
+.dos-strip-gauge .on { color: var(--dos-cy); }
+.dos-strip-gauge .off { color: color-mix(in srgb, var(--dos-cy) 24%, transparent); }
+.dos-strip-gauge[data-tone="warn"] .on { color: var(--dos-amber); }
+.dos-strip-gauge[data-tone="hot"] .on { color: var(--dos-mag); }
+.dos-strip-toggle {
+  pointer-events: auto; width: 16px; height: 15px; padding: 0; cursor: pointer;
+  font: inherit; font-size: 9px; color: var(--dos-ink-dim);
+  background: transparent; border: 1px solid var(--dos-panel-line);
+}
+.dos-strip-toggle:hover { color: var(--dos-cy); border-color: var(--dos-cy); }
+
+.dos-strip-card {
+  pointer-events: auto; width: 460px; max-width: 92vw; margin-top: 4px; padding: 8px 10px 9px;
+  background: var(--dos-panel-bg); border: 1px solid var(--dos-edge);
+  box-shadow: var(--dos-panel-shadow); backdrop-filter: blur(9px) saturate(1.1);
+  font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK SC", monospace;
+  font-size: 10.5px; color: var(--dos-ink);
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+.dos-strip-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dos-strip-card-head b { font-weight: 600; color: var(--dos-ink); }
+.dos-strip-card-head span { color: var(--dos-ink-faint); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; }
+.dos-strip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; margin-top: 7px; }
+.dos-strip-grid > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dos-strip-grid .k { color: var(--dos-ink-faint); font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; }
+.dos-strip-grid b { font-weight: 500; font-size: 12px; }
+.dos-strip-grid small { color: var(--dos-ink-faint); font-size: 9px; }
+.dos-strip-rule { height: 1px; margin: 8px 0 6px; background: linear-gradient(90deg, var(--dos-edge), transparent 62%); }
+.dos-strip-breakdown { display: flex; flex-direction: column; gap: 3px; }
+.dos-strip-seg { display: grid; grid-template-columns: 74px 1fr 46px; align-items: center; gap: 8px; }
+.dos-strip-seg-label { color: var(--dos-ink-dim); font-size: 9.5px; letter-spacing: .1em; }
+.dos-strip-seg-bar { height: 5px; background: linear-gradient(90deg, var(--dos-cy), var(--dos-cy-dim)); }
+.dos-strip-seg-num { color: var(--dos-ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
+.dos-strip-card-foot { display: flex; align-items: center; gap: 8px; }
+.dos-strip-action {
+  pointer-events: auto; padding: 2px 7px; cursor: pointer; font: inherit; font-size: 9.5px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--dos-ink-dim);
+  background: transparent; border: 1px solid var(--dos-panel-line);
+}
+.dos-strip-action:hover { color: var(--dos-cy); border-color: var(--dos-cy); }
+.dos-strip-action[data-on="1"] { color: var(--dos-chip-on-ink); background: var(--dos-cy); border-color: var(--dos-cy); }
+.dos-strip-seg-switch { display: inline-flex; gap: 3px; }
+.dos-strip-card-foot .dos-strip-dim { margin-left: auto; font-size: 9px; }
 `
