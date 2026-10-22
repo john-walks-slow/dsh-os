@@ -1,6 +1,6 @@
 {
   "name": "dsh-os",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DeepSeek Harness OS: turn the DSH Web home page into a cyberpunk terminal desktop — animated ASCII field, boot self-test, and a live system/harness telemetry HUD. dsh-os：把 DSH Web 首页变成一台赛博终端桌面——ASCII 字符场动效、开机自检、真实系统与 Harness 参数监控 HUD。",
   "license": "MIT",
   "type": "module",
@@ -23,9 +23,9 @@
   "scripts": {
     "build": "node build.mjs && node --check lib/index.js && node --check lib/client.js",
     "typecheck": "tsc --noEmit",
-    "prepare": "npm run build",
     "shot": "node tools/shot.mjs",
-    "e2e": "dsh-e2e run e2e/smoke.mjs"
+    "e2e": "dsh-e2e run e2e/smoke.mjs",
+    "prepack": "npm run build"
   },
   "dsh": {
     "bundle": {

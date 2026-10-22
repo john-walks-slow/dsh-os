@@ -59,32 +59,30 @@ dsh-os：把 DSH Web 首页（blank-session hero 界面）改造成一台兼具�
 
 ## 安装
 
-前提：本机已跑着 DSH Web，Node.js ≥ 20。
+一行装完，不需要克隆仓库：
+
+```bash
+dsh plugin --profile web add github:john-walks-slow/dsh-os
+```
+
+`web` 换成你自己的 profile 名。这条命令会把包加进依赖、写进 `dsh.profile.bundles`，并解析 `cordis.patch.yml`；重启 DSH 后生效。
+
+卸载：
+
+```bash
+dsh plugin --profile web remove dsh-os
+```
+
+装指定版本/tag：`add github:john-walks-slow/dsh-os#v0.1.2`。
+
+### 从源码改
 
 ```bash
 git clone https://github.com/john-walks-slow/dsh-os.git
-cd dsh-os
-npm install          # 装构建依赖，并自动 npm run build 产出 lib/
+cd dsh-os && npm install && npm run build
 ```
 
-然后在 DSH Web profile 的 `package.json`（一般是 `~/.dsh/profiles/<profile>/package.json`）里改两处：
-
-```json
-{
-  "dependencies": {
-    "dsh-os": "link:/你克隆到的绝对路径/dsh-os"
-  },
-  "dsh": {
-    "profile": {
-      "bundles": ["dsh-os"]
-    }
-  }
-}
-```
-
-重启 DSH 后生效。卸载就把这两处删掉再重启。
-
-`lib/` 是构建产物、已随仓库提交；只跑不改的话，`npm install --ignore-scripts` 也够用。
+然后把 profile 的 `package.json` 依赖写成 `"dsh-os": "link:/绝对路径/dsh-os"` 并加进 `bundles`，重启生效。
 
 ### 平台支持
 

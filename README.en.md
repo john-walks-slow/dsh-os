@@ -57,30 +57,30 @@ DeepSeek Harness OS: turn the DSH Web home page into a cyberpunk terminal deskto
 
 ## Install
 
-Requires a running DSH Web instance and Node.js 20+.
+One command, no clone needed:
+
+```bash
+dsh plugin --profile web add github:john-walks-slow/dsh-os
+```
+
+Replace `web` with your profile name. It adds the dependency, appends the package to `dsh.profile.bundles`, and resolves `cordis.patch.yml`; restart DSH to load it.
+
+Uninstall:
+
+```bash
+dsh plugin --profile web remove dsh-os
+```
+
+Pin a commit or tag with `add github:john-walks-slow/dsh-os#v0.1.2`.
+
+### From source
 
 ```bash
 git clone https://github.com/john-walks-slow/dsh-os.git
-cd dsh-os
-npm install          # installs build deps and runs npm run build into lib/
+cd dsh-os && npm install && npm run build
 ```
 
-Then edit your DSH Web profile's `package.json` (usually `~/.dsh/profiles/<profile>/package.json`):
-
-```json
-{
-  "dependencies": {
-    "dsh-os": "link:/absolute/path/to/dsh-os"
-  },
-  "dsh": {
-    "profile": {
-      "bundles": ["dsh-os"]
-    }
-  }
-}
-```
-
-Restart DSH to load it; remove both entries to uninstall. `lib/` is committed, so `npm install --ignore-scripts` is enough if you only want to run it.
+Then point the profile dependency at `"dsh-os": "link:/absolute/path/to/dsh-os"`, add it to `bundles`, and restart.
 
 ### Platform support
 
