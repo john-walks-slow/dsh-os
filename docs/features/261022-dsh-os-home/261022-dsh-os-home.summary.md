@@ -34,7 +34,11 @@
 6. **侧边栏终端化**
    - 统一深蓝渐变底 + CRT 扫描线 + 左侧刻度导轨 + 等宽字体 + `> WORKSPACES` 分组标签 + 描边 NEW SESSION 按钮；同时覆盖宿主主题的 `--dsw-specific-sidebar-fill` 变量，消除原来的灰色块。
 
-7. **验证产物与截图**
+7. **跨平台兜底**
+   - `/proc`、`/sys` 之外新增 `node:os` 采样路径：CPU 总/分核、内存、磁盘、Node 运行时在 Windows/macOS 上也成立。
+   - 载荷新增 `cap` 能力位，界面按平台隐藏频率、Swap、网卡、负载、电池、进程表等行；SYS 面板标 `MODE portable`。
+
+8. **验证产物与截图**
    - 完整冒烟用例：[`e2e/smoke.mjs`](e2e/smoke.mjs)
    - 官方多尺寸截图：
      - [`screenshots/home-rain.png`](screenshots/home-rain.png)

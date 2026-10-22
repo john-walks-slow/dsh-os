@@ -8,7 +8,7 @@
  */
 
 import { readdirSync, readFileSync, statfsSync } from 'node:fs'
-import { cpus, hostname, loadavg, platform, release, totalmem, uptime } from 'node:os'
+import { cpus, freemem, hostname, loadavg, networkInterfaces, platform, release, totalmem, uptime } from 'node:os'
 
 /** 一次 CPU 时间片读数（jiffies）。 */
 export interface CpuTimes {
@@ -100,10 +100,81 @@ function readNumber(path: string): number | null {
 	return Number.isFinite(value) ? value : null
 }
 
-/** 读取 /proc/stat 的 CPU 时间片；缺失时返回 null。 */
+/** 平台能力：界面上没有数据的行直接不画。 */
+export interface PlatformCaps {
+	perCore: boolean
+	freq: boolean
+	swap: boolean
+	net: boolean
+	disk: boolean
+	power: boolean
+	proc: boolean
+	load: boolean
+}
+
+export function platformCaps(): PlatformCaps {
+	const linux = platform() === 'linux'
+	return {
+		perCore: cpus().length > 0,
+		freq: linux,
+		swap: linux,
+		net: linux,
+		disk: true,
+		power: linux,
+		proc: linux,
+		load: platform() !== 'win32',
+	}
+}
+
+/** 磁盘根：Windows 用系统盘，其余用 /。 */
+export function diskRoot(): string {
+	if (platform() !== 'win32') return '/'
+	const drive = process.env.SystemDrive ?? 'C:'
+	return `${drive}\\`
+}
+
+/** 用 node:os 的累计时间片兜底，Windows / macOS 上也能算 CPU 占用。 */
+export function readCpuTimesFromOs(): CpuSnapshot | null {
+	const list = cpus()
+	if (list.length === 0) return null
+	interface OsTimes {
+		user: number
+		nice?: number
+		sys: number
+		idle: number
+		irq?: number
+	}
+	const toTimes = (times: OsTimes): CpuTimes => ({
+		user: times.user,
+		nice: times.nice ?? 0,
+		system: times.sys,
+		idle: times.idle,
+		iowait: 0,
+		irq: times.irq ?? 0,
+		softirq: 0,
+		steal: 0,
+	})
+	const cores = list.map((core) => toTimes(core.times))
+	const total = cores.reduce(
+		(sum, core) => ({
+			user: sum.user + core.user,
+			nice: sum.nice + core.nice,
+			system: sum.system + core.system,
+			idle: sum.idle + core.idle,
+			iowait: 0,
+			irq: sum.irq + core.irq,
+			softirq: 0,
+			steal: 0,
+		}),
+		{ user: 0, nice: 0, system: 0, idle: 0, iowait: 0, irq: 0, softirq: 0, steal: 0 },
+	)
+	return { cores, total }
+}
+
+/** 读取 /proc/stat 的 CPU 时间片；非 Linux 或读不到时退回 node:os。 */
 export function readCpuTimes(): CpuSnapshot | null {
 	const text = readText('/proc/stat')
-	if (!text) return null
+	if (!text) return readCpuTimesFromOs()
 	const cores: CpuTimes[] = []
 	let total: CpuTimes | null = null
 	for (const line of text.split('\n')) {
@@ -129,8 +200,9 @@ export function readCpuTimes(): CpuSnapshot | null {
 	return { cores, total }
 }
 
-/** 逐核频率（MHz）；读不到的核心用 null。 */
+/** 逐核频率（MHz）；非 Linux 或读不到的核心用 null。 */
 export function readCpuFreqs(coreCount: number): (number | null)[] {
+	if (platform() !== 'linux') return new Array(coreCount).fill(null)
 	const freqs: (number | null)[] = []
 	for (let index = 0; index < coreCount; index += 1) {
 		const khz = readNumber(`/sys/devices/system/cpu/cpu${index}/cpufreq/scaling_cur_freq`)
@@ -139,10 +211,15 @@ export function readCpuFreqs(coreCount: number): (number | null)[] {
 	return freqs
 }
 
-/** 读取 /proc/meminfo。 */
+/** 读取 /proc/meminfo；非 Linux 时用 node:os 的总量/可用量兜底。 */
 export function readMem(): MemSnapshot | null {
 	const text = readText('/proc/meminfo')
-	if (!text) return null
+	if (!text) {
+		const total = Math.round(totalmem() / 1024)
+		const free = Math.round(freemem() / 1024)
+		if (total <= 0) return null
+		return { total, available: free, free, buffers: 0, cached: 0, dirty: 0, swapTotal: 0, swapFree: 0, slab: 0 }
+	}
 	const fields = new Map<string, number>()
 	for (const line of text.split('\n')) {
 		const match = /^(\w+):\s+(\d+)/.exec(line)
@@ -166,7 +243,13 @@ export function readMem(): MemSnapshot | null {
 /** 选择主用网卡：优先 wlan0，其次第一个非 lo 且有流量的接口。 */
 export function pickIface(): string {
 	const text = readText('/proc/net/dev')
-	if (!text) return 'lo'
+	if (!text) {
+		// 非 Linux 没有 /proc/net/dev：退到 node:os 的接口名，仅用于显示
+		for (const [name, addresses] of Object.entries(networkInterfaces())) {
+			if (addresses?.some((address) => !address.internal)) return name
+		}
+		return '—'
+	}
 	let fallback = 'lo'
 	for (const line of text.split('\n').slice(2)) {
 		const match = /^\s*([^:]+):/.exec(line)
@@ -199,7 +282,7 @@ export function readNet(iface: string): NetSnapshot | null {
 }
 
 /** 读取根分区占用。 */
-export function readDisk(path = '/'): DiskSnapshot | null {
+export function readDisk(path = diskRoot()): DiskSnapshot | null {
 	try {
 		const stats = statfsSync(path)
 		const total = stats.blocks * stats.bsize
@@ -214,6 +297,7 @@ const CPU_TEMP_HINTS = ['cpu', 'soc', 'apc', 'tsens', 'gpu', 'ddr', 'board']
 
 /** 读取 CPU/SoC 温度与电池信息；读不到就是 null，不做降级猜测。 */
 export function readPower(): PowerSnapshot {
+	if (platform() !== 'linux') return { cpuTempC: null, batteryPercent: null, batteryTempC: null, batteryStatus: null }
 	let cpuTempC: number | null = null
 	try {
 		for (const zone of readdirSync('/sys/class/thermal')) {
@@ -294,7 +378,7 @@ export class ProcessSampler {
 	}
 }
 
-/** /proc/cpuinfo 里能读到的 SoC 标识；ARM 设备通常只有 Hardware 行。 */
+/** /proc/cpuinfo 里能读到的 SoC 标识；非 Linux 直接用 node:os 的型号。 */
 function readCpuModel(): string {
 	const text = readText('/proc/cpuinfo') ?? ''
 	for (const key of ['Hardware', 'model name', 'Processor', 'cpu model']) {
@@ -341,7 +425,7 @@ export function readRunQueue(): { running: number; total: number } {
 	return { running: match ? Number.parseInt(match[1]!, 10) : 0, total: match ? Number.parseInt(match[2]!, 10) : 0 }
 }
 
-/** 系统负载与运行时长。 */
+/** 系统负载与运行时长；Windows 没有 loadavg，返回零并由界面隐藏该行。 */
 export function readLoad(): { load: [number, number, number]; uptimeSec: number } {
 	const [one = 0, five = 0, fifteen = 0] = loadavg()
 	const text = readText('/proc/uptime')

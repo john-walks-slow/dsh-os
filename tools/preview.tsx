@@ -38,6 +38,9 @@ const settings = store.value
 const palette = paletteFor(settings)
 for (const [property, value] of Object.entries(paletteVars(palette))) document.documentElement.style.setProperty(property, value)
 
+// ?win=1 模拟没有 /proc、/sys 的平台（Windows/macOS）下的布局
+const winMode = params.get('win') === '1'
+
 const history = (base: number, amp: number): number[] =>
   Array.from({ length: 60 }, (_, index) => Math.max(0, base + Math.sin(index / 5) * amp + Math.sin(index / 2.3) * amp * 0.4))
 
@@ -53,6 +56,13 @@ const metrics: MetricsPayload = {
   proc: { total: 953, running: 5, tasks: 953, top: [] },
   node: { pid: 4558, rss: 486_000_000, heapUsed: 210_000_000, heapTotal: 320_000_000, external: 40_000_000, uptimeSec: 29410, lagMs: 0.4, elu: 3.2, version: 'v22.23.2' },
   history: { at: history(0, 1), cpu: history(30, 18), mem: history(70, 3), rx: history(300_000, 240_000), tx: history(240_000, 180_000) },
+  cap: { perCore: true, freq: !winMode, swap: !winMode, net: !winMode, disk: true, power: !winMode, proc: !winMode, load: !winMode },
+}
+if (winMode) {
+  metrics.net = { iface: '—', rxBps: 0, txBps: 0, rxTotal: 0, txTotal: 0 }
+  metrics.cpu.freqs = metrics.cpu.freqs.map(() => null)
+  metrics.power = { cpuTempC: null, batteryPercent: null, batteryTempC: null, batteryStatus: null }
+  metrics.proc = { total: 0, running: 0, tasks: 0, top: [] }
 }
 
 const now = Date.now()

@@ -37,7 +37,7 @@ function buildRows(metrics: MetricsPayload | null, harness: HarnessSnapshot): Bo
 		{ tag: 'mount', key: '/', value: metrics ? `${bytes(metrics.disk.total)} · ${percent((metrics.disk.used / Math.max(1, metrics.disk.total)) * 100)} used` : '…' },
 		{ tag: 'cpu', key: host?.model ?? '…', value: host ? `${host.cores} cores` : '…' },
 		{ tag: 'mem', key: 'main', value: metrics ? `${bytes(metrics.mem.total * 1024)} · ${percent(metrics.mem.percent)} in use` : '…' },
-		{ tag: 'net', key: metrics?.net.iface ?? '…', value: metrics ? 'link up · telemetry bound' : '…' },
+		{ tag: 'net', key: metrics?.cap?.net ? metrics.net.iface : 'host stack', value: metrics ? 'link up · telemetry bound' : '…' },
 		{ tag: 'harn', key: 'plugin tree', value: 'ok' },
 		{ tag: 'harn', key: 'session catalogue', value: `${harness.total} indexed · ${harness.running} running` },
 		{ tag: 'harn', key: 'preset', value: harness.model || 'default' },

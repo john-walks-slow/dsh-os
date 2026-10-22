@@ -8,9 +8,10 @@
  */
 
 import { performance } from 'node:perf_hooks'
-import type { CpuSnapshot, CpuTimes, DiskSnapshot, HostFacts, MemSnapshot, NetSnapshot, PowerSnapshot, ProcessRow } from './procfs.js'
+import type { CpuSnapshot, CpuTimes, DiskSnapshot, HostFacts, MemSnapshot, NetSnapshot, PlatformCaps, PowerSnapshot, ProcessRow } from './procfs.js'
 import {
 	hostFacts,
+	platformCaps,
 	pickIface,
 	ProcessSampler,
 	readCpuFreqs,
@@ -31,6 +32,8 @@ const HISTORY = 90
 export interface MetricsPayload {
 	t: number
 	host: HostFacts
+	/** 当前平台能拿到哪些数据，界面据此隐藏整行。 */
+	cap: PlatformCaps
 	cpu: {
 		total: number
 		cores: number[]
@@ -222,7 +225,7 @@ export class MetricsSampler {
 			slab: 0,
 		}
 		const load = readLoad()
-		const disk = readDisk('/') ?? { total: 0, used: 0, free: 0 }
+		const disk = readDisk() ?? { total: 0, used: 0, free: 0 }
 		const net = readNet(this.iface)
 		const memory = {
 			...mem,
@@ -234,6 +237,7 @@ export class MetricsSampler {
 		return {
 			t: Date.now(),
 			host: { ...facts, uptimeSec: load.uptimeSec },
+			cap: platformCaps(),
 			cpu: {
 				total: this.cpuPercent,
 				cores: this.corePercents,

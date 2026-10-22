@@ -82,6 +82,19 @@ Then edit your DSH Web profile's `package.json` (usually `~/.dsh/profiles/<profi
 
 Restart DSH to load it; remove both entries to uninstall. `lib/` is committed, so `npm install --ignore-scripts` is enough if you only want to run it.
 
+### Platform support
+
+| Metric | Linux | Windows / macOS |
+| --- | --- | --- |
+| CPU total / per core | `/proc/stat` (incl. iowait, steal) | `node:os` (no iowait/steal) |
+| CPU freq, temperature, battery | `/sys` | — |
+| Memory / swap | `/proc/meminfo` | memory yes, swap no |
+| Disk usage | ✅ | ✅ system drive |
+| Network throughput | `/proc/net/dev` | — |
+| Process table / load | ✅ | — |
+
+Rows without data are simply hidden, and the SYS panel shows `MODE portable · node:os`. On Windows the `link:` path accepts forward slashes, e.g. `"dsh-os": "link:C:/Users/you/dsh-os"`.
+
 ### Data & permissions
 
 - Reads `/proc`, `/sys` and `statfs` locally for telemetry; nothing leaves the machine.

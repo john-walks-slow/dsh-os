@@ -37,6 +37,13 @@ export function SystemPanel({
 	const swapPercent = metrics && metrics.mem.swapTotal > 0 ? (swapUsed / metrics.mem.swapTotal) * 100 : 0
 	const diskPercent = metrics && metrics.disk.total > 0 ? (metrics.disk.used / metrics.disk.total) * 100 : 0
 	const netValues = (metrics?.history.rx ?? []).map((value, index) => value + (metrics?.history.tx?.[index] ?? 0))
+	// 平台拿不到的行整行不画：宁可少一行，也别挂一排 `--`
+	const cap = metrics?.cap
+	const showFreq = cap ? cap.freq : true
+	const showSwap = cap ? cap.swap : true
+	const showNet = cap ? cap.net : true
+	const showLoad = cap ? cap.load : true
+	const showPower = cap ? cap.power : true
 	return (
 		<Panel title="SYS · MONITOR" meta={fps ? `FLD ${fps}FPS` : 'LIVE'} style={style}>
 			<div className="dos-stack">
@@ -62,13 +69,29 @@ export function SystemPanel({
 					</div>
 				))}
 			</div>
+			{showFreq && (
+				<div className="dos-row">
+					<span className="dos-k">FREQ</span>
+					<span className="dos-v">
+						{freq ? `${freq}MHz` : '--'}
+						<small>{metrics?.power.cpuTempC ? ` ${metrics.power.cpuTempC.toFixed(1)}°C` : ''}</small>
+					</span>
+				</div>
+			)}
 			<div className="dos-row">
-				<span className="dos-k">FREQ</span>
+				<span className="dos-k">ARCH</span>
 				<span className="dos-v">
-					{freq ? `${freq}MHz` : '--'}
-					<small>{metrics?.power.cpuTempC ? ` ${metrics.power.cpuTempC.toFixed(1)}°C` : ''}</small>
+					<small>{metrics ? `${metrics.host.platform} · ${metrics.host.arch}` : '--'}</small>
 				</span>
 			</div>
+			{!showNet && (
+				<div className="dos-row">
+					<span className="dos-k">MODE</span>
+					<span className="dos-v">
+						<small>portable · node:os</small>
+					</span>
+				</div>
+			)}
 			<div className="dos-rule" />
 			<div className="dos-stack">
 				<div className="dos-row">
@@ -84,13 +107,15 @@ export function SystemPanel({
 					</span>
 				</div>
 			</div>
-			<div className="dos-row">
-				<span className="dos-k">SWP</span>
-				<span className="dos-v">
-					<Meter value={swapPercent} width={5} tone="ghost" />
-					<small> {metrics ? `${bytes(swapUsed * 1024)}/${bytes(metrics.mem.swapTotal * 1024)}` : '--'}</small>
-				</span>
-			</div>
+			{showSwap && (
+				<div className="dos-row">
+					<span className="dos-k">SWP</span>
+					<span className="dos-v">
+						<Meter value={swapPercent} width={5} tone="ghost" />
+						<small> {metrics ? `${bytes(swapUsed * 1024)}/${bytes(metrics.mem.swapTotal * 1024)}` : '--'}</small>
+					</span>
+				</div>
+			)}
 			<div className="dos-row">
 				<span className="dos-k">DSK</span>
 				<span className="dos-v">
@@ -99,18 +124,24 @@ export function SystemPanel({
 				</span>
 			</div>
 			<div className="dos-rule" />
-			<div className="dos-row">
-				<span className="dos-k">NET</span>
-				<span className="dos-v">
-					<small>{metrics?.net.iface ?? '--'}</small> ↓{metrics ? rate(metrics.net.rxBps) : '--'} ↑{metrics ? rate(metrics.net.txBps) : '--'}
-				</span>
-			</div>
-			<Sparkline values={netValues} height={16} />
-			<div className="dos-row">
-				<span className="dos-k">LOAD</span>
-				<span className="dos-v">{metrics ? metrics.load.map((value) => value.toFixed(2)).join(' ') : '-- -- --'}</span>
-			</div>
-			{!compact && (
+			{showNet && (
+				<>
+					<div className="dos-row">
+						<span className="dos-k">NET</span>
+						<span className="dos-v">
+							<small>{metrics?.net.iface ?? '--'}</small> ↓{metrics ? rate(metrics.net.rxBps) : '--'} ↑{metrics ? rate(metrics.net.txBps) : '--'}
+						</span>
+					</div>
+					<Sparkline values={netValues} height={16} />
+				</>
+			)}
+			{showLoad && (
+				<div className="dos-row">
+					<span className="dos-k">LOAD</span>
+					<span className="dos-v">{metrics ? metrics.load.map((value) => value.toFixed(2)).join(' ') : '-- -- --'}</span>
+				</div>
+			)}
+			{!compact && showPower && (
 			<div className="dos-row">
 				<span className="dos-k">BAT</span>
 				<span className="dos-v">
@@ -222,7 +253,7 @@ export function HarnessPanel({
 				tone={node && node.lagMs > 40 ? 'warn' : undefined}
 			/>
 			<Row label="UPTIME" value={metrics ? duration(metrics.host.uptimeSec) : '--'} />
-			{!compact && (
+			{!compact && (metrics?.cap?.proc !== false) && (
 				<Row label="PROCS" value={<>{metrics?.proc.total ?? '--'} <small>runq {metrics?.proc.running ?? '--'}</small></>} />
 			)}
 			{!compact && <div className="dos-spacer" />}

@@ -86,6 +86,20 @@ npm install          # 装构建依赖，并自动 npm run build 产出 lib/
 
 `lib/` 是构建产物、已随仓库提交；只跑不改的话，`npm install --ignore-scripts` 也够用。
 
+### 平台支持
+
+| 指标 | Linux | Windows / macOS |
+| --- | --- | --- |
+| CPU 总占用 · 分核 | `/proc/stat`（含 iowait / steal） | `node:os`（无 iowait / steal） |
+| CPU 频率 · 温度 · 电池 | `/sys` | — |
+| 内存 · Swap | `/proc/meminfo` | 内存可读；Swap 无 |
+| 磁盘占用 | ✅ | ✅ 系统盘 |
+| 网卡速率 | `/proc/net/dev` | — |
+| 进程表 · 负载 | ✅ | — |
+
+拿不到的行界面会直接隐藏，并在 SYS 面板标一行 `MODE portable · node:os`，不会挂一排 `--`。
+Windows 上 `link:` 路径用正斜杠即可，例如 `"dsh-os": "link:C:/Users/you/dsh-os"`。
+
 ### 数据与权限
 
 - 只读本机 `/proc`、`/sys`、`statfs` 拿系统指标，全部在本机内循环，不联网。
