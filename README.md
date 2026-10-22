@@ -1,8 +1,6 @@
 # dsh-os
 
-DeepSeek Harness OS: turn the DSH Web home page into a cyberpunk terminal desktop — animated ASCII background patterns, boot self-test, live system & Harness telemetry HUD, and native UI skinning.
-
-dsh-os：把 DSH Web 首页（blank-session hero 界面）改造成一台兼具极客美学与实用监控的赛博终端桌面。包含 ASCII/Lain 风格字符雨与流场拓扑动效、开机自检序列（POST sequence）、真实系统/Harness 参数监控 HUD、原生侧边栏与输入框皮肤，以及完整的偏好设置页。
+DeepSeek Harness OS：把 DSH Web 首页（blank-session hero 界面）改造成一台兼具极客美学与真实监控的赛博终端桌面。包含 ASCII/Lain 风格字符雨与流场拓扑动效、开机自检序列（POST）、整机与 Harness 参数监控 HUD、**按模型聚合的 Token 账本**、深浅色双墨色，以及完整的偏好设置页。
 
 [English](README.en.md) · **中文**
 
@@ -10,50 +8,66 @@ dsh-os：把 DSH Web 首页（blank-session hero 界面）改造成一台兼具�
 
 ## 视觉与特性概览
 
-| 默认蓝调主题 · 稀疏字符雨（Rain） | 3D 旋转 DSH 娘全息投影（Dsh-Chan） |
+| 深色 · 稀疏字符雨（默认） | 浅色 · 纸面蓝图 |
 | :---: | :---: |
-| ![Rain Pattern](<screenshots/home-rain.png>) | ![DSH Chan](<screenshots/home-dshchan.png>) |
+| ![Rain Pattern](<screenshots/home-rain.png>) | ![Light Tone](<screenshots/home-light.png>) |
 
-| 等高线拓扑场（Field 迷幻模式） | 内置设置面板（Settings） |
+| 3D 旋转 DSH 娘全息投影 | 等高线拓扑场（迷幻模式） |
 | :---: | :---: |
-| ![Field Pattern](<screenshots/home-field.png>) | ![Settings Panel](<screenshots/settings.png>) |
+| ![DSH Chan](<screenshots/home-dshchan.png>) | ![Field Pattern](<screenshots/home-field.png>) |
 
-| 开机自检序列（Boot POST） | 移动端自适应（Mobile Responsive） |
+| 开机自检序列（Boot POST） | 移动端自适应 |
 | :---: | :---: |
 | ![Boot Sequence](<screenshots/boot.png>) | ![Mobile View](<screenshots/home-mobile.png>) |
+
+| 内置设置页（Settings） |
+| :---: |
+| ![Settings Panel](<screenshots/settings.png>) |
 
 ---
 
 ## 核心特性
 
-1. **真实宿主与系统监控 (SYS · MONITOR)**
-   - **CPU 全核与分核监控**：实时总利用率、各核柱状图（C0~C7）与主频/温度读数。
-   - **内存与存储**：物理内存占用比率、Swap 分区用量、根分区 (`/`) 磁盘使用。
-   - **网络吞吐**：自动识别主要网络接口（如 `wlan0`），计算瞬时收发速率（KB/s）并附带迷你折线走势图。
-   - **系统状态**：负载（1/5/15m Loadavg）、电池电量、充放电状态与电池温度。
+1. **整机监控（SYS · MONITOR）**
+   - **CPU**：总利用率、分核柱状图（C0~C7）、主频与温度。
+   - **内存与存储**：物理内存、Swap、根分区占用。
+   - **网络**：自动识别主网卡（如 `wlan0`），瞬时收发速率 + 迷你折线，**鼠标悬停可读出任意一刻的瞬时值**。
+   - **负载与运行时长**：1/5/15m Loadavg、开机时长、电池电量与温度。
+   - 窗格按可用高度决定画哪几行：宁可少画一行，也不会让内容被静默裁掉。
 
-2. **Harness 核心与 Token 账本 (HARNESS · CORE & TOKEN · LEDGER)**
-   - **会话与预设态**：总会话数、运行中会话、当前工作区基准、当前代理预设（Preset）。
-   - **上下文压力监控**：当前会话 Context Window 占比、Prompt Token 消耗量、推理与缓存用量。
-   - **多会话 Token 排行账本**：按会话聚合输入/输出 Token、缓存命中率（Cache Hit Ratio）以及解码速率（Tokens Per Second / TPS）。
-   - **Node 运行时健康度**：DSH 服务进程 PID、常驻内存 (RSS)、堆内存、事件循环延迟 (Event Loop Lag)。
+2. **当前工作区总览（WORKSPACE · OVERVIEW）**
+   - 工作区名、会话总数与 7 天活跃数、**此刻正在跑的会话与在飞的子代理数**。
+   - 今日新增 Token 与缓存重读量分开统计，另有缓存命中率、最近活动时间与主力模型。
+   - 底部一行 Node 运行时读数（RSS / Event Loop Lag / 进程数）。
 
-3. **三种字符动效背景 (Glyph Engine)**
-   - **稀疏字符雨 (`rain`) - 默认推荐**：Lain 极简风格，垂直列式下落、长尾渐隐、点阵底纹，安静不抢眼，专注输入。
-   - **3D 旋转 DSH 娘 (`dsh-chan`)**：把鲸鱼娘立绘采样成 42×75 的 ASCII 位图，按材质分出前后层，在三维空间里绕 Y 轴缓慢自转——有视差、有透视、有投影台与倒影，转到侧面时会触发一次"重建"抖动。
-   - **等高线拓扑场 (`field`)**：3D Perlin 标量场切出多层等高线，距离场自适应字形排列与 Bayer 抖动着色，浓烈迷幻。
-   - **智能让位**：中间输入区域自动计算椭圆径向暗角，确保输入框文字清晰无阻碍。
+3. **最近会话（SESSIONS · RECENT）**
+   - 按最近活动排序，带模型、Token 与相对时间；**点一行直接回到那个会话**。
+   - 空白会话与子代理会话不计入，不会出现"没有内容的假会话"。
 
-4. **原生界面统一美化 (Native Skinning)**
-   - 自动接管首页的深色渲染模式，把主窗口底色打透与背景交融。
+4. **模型账本（MODEL · LEDGER）**
+   - 按**模型**聚合 Token：会话数、输入、输出、缓存命中率、解码速度（TPS）与占比。
+   - 数据来自 DSH 自己的会话投影缓存（`storages/session_projcache`），覆盖**全部历史会话**——不是只算当前打开的那几个，所以在首页（没有任何活跃会话时）也有真实数字；Linux / Windows / macOS 一视同仁。
+   - 支持 `24H / 7D / ALL` 时间窗与 `WS / ALL` 口径切换；**点一行回到该模型最近用过的会话**。
+
+5. **三种字符动效背景（Glyph Engine）**
+   - **稀疏字符雨（`rain`，默认推荐）**：Lain 极简风格，垂直列式下落、长尾渐隐、点阵底纹。
+   - **3D 旋转 DSH 娘（`dsh-chan`）**：把鲸鱼娘立绘采样成 42×75 的 ASCII 位图，按材质分前后层，绕 Y 轴缓慢自转——有视差、有透视、有投影台与倒影。
+   - **等高线拓扑场（`field`）**：3D Perlin 标量场切出多层等高线，距离场自适应字形排列与 Bayer 抖动着色。
+   - 中间输入区域自动计算椭圆径向暗角，确保输入框文字清晰无阻碍。
+
+6. **深浅色双墨色**
+   - **跟随宿主**（默认）：宿主切深浅色，桌面一起换——桌面层不会像早期版本那样强行改写宿主的主题。
+   - 深色是霓虹终端，浅色是纸面/蓝图：同一套窗格与等宽字语汇，两套墨色。
+   - 任务栏 `SYS / DARK / LIGHT` 芯片或设置页里切换；点芯片同时会把宿主主题偏好一起改掉。
+
+7. **原生界面美化**
    - **移除原生 hero 标题**：首页的 "Into the Unknown" 标题、鲸鱼图标与预览徽标全部隐去，只留工作区选择与输入框。
-   - **侧边栏皮肤**：整条侧边栏切成终端形态——深蓝渐变底、CRT 扫描线、左侧刻度导轨、等宽字体、"`> WORKSPACES`" 分组标签与全大写描边的 NEW SESSION 按钮。
-   - **输入框皮肤**：微光投影、主色微调、高对比度占位提示与聚焦光晕。
+   - **输入框皮肤**：与桌面同底的渐变、主色描边、聚焦光晕。
 
-5. **交互与操作**
-   - 键盘 `` ` `` (反引号 / 波浪号)：一键快速切换/隐藏整个 OS 桌面层。
+8. **交互与操作**
+   - 键盘 `` ` ``（反引号 / 波浪号）：一键快速切换/隐藏整个 OS 桌面层。
    - 键盘 `Esc` / 点击屏幕：立即跳过开机自检序列。
-   - 底部任务栏快捷按钮：一键切换背景动效、重播开机、打开设置。
+   - 底部任务栏：`FIELD` 背景动效开关、`BOOT` 重播、`WS/ALL` 统计口径、`SYS/DARK/LIGHT` 明暗、`SETTINGS` 入口；右侧滚动条显示真实事件（CPU 打满、内存压力、网络突发、会话起停）。
 
 ---
 
@@ -73,7 +87,7 @@ dsh plugin --profile web add github:john-walks-slow/dsh-os
 dsh plugin --profile web remove dsh-os
 ```
 
-装指定版本/tag：`add github:john-walks-slow/dsh-os#v0.1.2`。
+装指定版本/tag：`add github:john-walks-slow/dsh-os#v0.2.0`。
 
 ### 从源码改
 
@@ -94,24 +108,40 @@ cd dsh-os && npm install && npm run build
 | 磁盘占用 | ✅ | ✅ 系统盘 |
 | 网卡速率 | `/proc/net/dev` | — |
 | 进程表 · 负载 | ✅ | — |
+| 模型账本（会话投影缓存） | ✅ | ✅ |
 
-拿不到的行界面会直接隐藏，并在 SYS 面板标一行 `MODE portable · node:os`，不会挂一排 `--`。
+拿不到的行界面会直接隐藏，并在 SYS 面板的 ARCH 行标注 `node:os`，不会挂一排 `--`。
 Windows 上 `link:` 路径用正斜杠即可，例如 `"dsh-os": "link:C:/Users/you/dsh-os"`。
 
 ### 数据与权限
 
-- 只读本机 `/proc`、`/sys`、`statfs` 拿系统指标，全部在本机内循环，不联网。
+- **只读**本机 `/proc`、`/sys`、`statfs` 拿系统指标，并**只读** DSH 自己的会话投影缓存（`<DSH_HOME>/storages/session_projcache`）做账本聚合；全部在本机内循环，不联网。
+- 账本的时间窗按"会话最近活动时间"归窗（投影本身是按会话聚合的，不是逐轮次），所以是近似而非精确到每一轮。
 - 偏好存在浏览器 `localStorage`（键 `dsh-os:settings`）。
 - 不写会话数据，不改 DSH 配置；退出首页后桌面层与皮肤全部自动卸掉。
 
 ## 架构与技术实现
 
-- **无依赖宿主插件**：宿主半边 (`src/index.ts` + `src/procfs.ts` + `src/metrics.ts`) 仅依赖 Node.js 核心库，直接读取 Linux `/proc` 与 `/sys` 虚拟文件系统，不静态引入 `@deepseek-ai/*` 运行时，彻底规避 link 依赖导致的 ESM 循环解析崩溃问题。
-- **独立指标端点**：宿主暴露 `GET /plugins/dsh-os/metrics` 轻量级 JSON 快照接口，维持 90 点历史环形缓冲区。
+- **无依赖宿主插件**：宿主半边（`src/index.ts` + `src/procfs.ts` + `src/metrics.ts` + `src/harness.ts`）仅依赖 Node.js 核心库，不静态引入 `@deepseek-ai/*` 运行时，彻底规避 link 依赖导致的 ESM 循环解析崩溃问题。
+- **两个只读端点**：
+  - `GET /plugins/dsh-os/metrics`：整机读数快照（90 点历史环形缓冲）。
+  - `GET /plugins/dsh-os/harness?ws=<cwd>`：会话与 Token 账本。宿主侧把 3400+ 条投影检查点索引进内存（首轮分批 200 文件/帧、之后每 15 秒按 mtime/size 增量刷新），请求只做内存聚合。
 - **纯客户端无侵入挂载**：
-  - 核心 HUD 挂载于 `shell.overlay`（Frame 级 Click-through 插槽），通过实测动态计算中央列与 Hero 输入框的边界。
-  - 通过 `isHome(snapshot)` 智能检测当前是否处于空白会话首页，进入会话后即时撤销背景与样式，恢复干净的对话工作流。
-  - 设置模块挂载于标准 `settings.section` 插槽，与 DSH 原生设置中心完美融合。
+  - HUD 挂载于 `shell.overlay`（Frame 级 click-through 插槽），几何由中央列与 hero 的实测矩形推出来。
+  - `isHome(snapshot)` 判定空白会话首页；进入会话后即时撤销背景与皮肤。
+  - 明暗读宿主 `ctx.theme`（缺失时回退到 `body[data-ds-dark-theme]` + `prefers-color-scheme`），只在 `html` 上打自己的 `data-dos-tone`。
+  - 设置模块挂载于标准 `settings.section` 插槽。
+
+### 开发
+
+```bash
+npm run build          # 构建 lib/index.js 与 lib/client.js
+npm run typecheck      # tsc --noEmit
+npm run e2e            # dsh-e2e 隔离实例 + 无头冒烟测试（含夹具播种）
+npm run e2e:shots      # 重新生成 screenshots/ 里的官方截图
+```
+
+设计迭代可以在不启动 DSH 的情况下进行：`npx esbuild tools/preview.tsx --bundle --format=iife --jsx=automatic --define:process.env.NODE_ENV='"production"' --outfile=tools/preview.js`，然后打开 `tools/preview.html?pattern=rain&tone=light`（`?settings=1` 渲染设置页，`?win=1` 模拟无 `/proc` 的平台）。
 
 ---
 

@@ -1,15 +1,16 @@
 /**
- * 四块窗格：SYS.MONITOR、HARNESS.CORE、SESSIONS、CONSOLE。
+ * 四块窗格：SYS · MONITOR、WORKSPACE · OVERVIEW、SESSIONS · RECENT、MODEL · LEDGER。
  *
- * 数据全部来自真实读数；没有读数时显示 `--`，不编造占位数字。
+ * 数据全部来自真实读数：整机读数来自宿主 metrics 端点，会话与 token 口径来自
+ * 会话投影索引（`harness` 端点）。没有读数时显示 `--`，不编造占位数字。
  *
  * @module dsh-os/client/os/panels
  */
 
 import type { CSSProperties } from 'react'
-import { ago, basename, bytes, clock, duration, percent, rate, shorten, tokens } from '../format'
-import type { ContextStat, HarnessSession, HarnessSnapshot, LedgerRow, LogLine, MetricsPayload } from '../types'
-import { Meter, Panel, Row, Sparkline, SubTitle } from './chrome'
+import { ago, bytes, duration, percent, rate, shorten, tokens } from '../format'
+import type { HarnessPayload, HarnessSessionRow, LedgerWindow, MetricsPayload, ModelUsageRow, ScopeStats } from '../types'
+import { Meter, Panel, Row, Seg, Sparkline, SubTitle } from './chrome'
 
 function averageFreq(freqs: (number | null)[] | undefined): number | null {
 	const known = (freqs ?? []).filter((value): value is number => typeof value === 'number' && value > 0)
@@ -17,17 +18,61 @@ function averageFreq(freqs: (number | null)[] | undefined): number | null {
 	return Math.round(known.reduce((sum, value) => sum + value, 0) / known.length)
 }
 
+/** 缓存命中率：读缓存 / (未缓存输入 + 读缓存)。 */
+function cacheRatio(stats: { input: number; cacheRead: number }): number {
+	const total = stats.input + stats.cacheRead
+	return total > 0 ? (stats.cacheRead / total) * 100 : 0
+}
+
+/**
+ * 窗格高度决定画几行。
+ *
+ * 面板是 `overflow: hidden`，装不下的行会被静默裁掉——那比主动少画一行更糟，
+ * 用户会以为数据就长这样。所以按实测的每行高度算预算，再按重要性逐个放行：
+ * 频率/架构 → 网络 → Swap/磁盘 → 负载 → 运行时长；分核数量不同，预算也跟着变。
+ *
+ * 常数是等宽字体下的实测量（16px = 14px 行高 + 2px 间距、分核每行 12px、
+ * 外框标题与各分隔线合计 42px，含几像素余量），为的是绝不出现"半行被切掉"。
+ */
+const ROW_H = 16
+
+function systemRows(
+	height: number,
+	cores: number,
+	caps: { freq: boolean; swap: boolean; net: boolean; load: boolean },
+): Set<string> {
+	const cpuBlock = ROW_H * 2 + Math.ceil(Math.max(1, cores) / 2) * 12
+	const memBlock = ROW_H * 2 + 3
+	let budget = height - 42 - cpuBlock - memBlock
+	const rows = new Set<string>()
+	const want: [string, number, boolean][] = [
+		['freq', ROW_H, caps.freq],
+		['arch', ROW_H, true],
+		['net', ROW_H * 2, caps.net],
+		['swap', ROW_H, caps.swap],
+		['disk', ROW_H, true],
+		['load', ROW_H, caps.load],
+		['up', ROW_H, true],
+	]
+	for (const [key, cost, allow] of want) {
+		if (!allow || cost > budget) continue
+		budget -= cost
+		rows.add(key)
+	}
+	return rows
+}
+
 /** 左侧：整机实时读数。 */
 export function SystemPanel({
 	metrics,
 	style,
 	fps,
-	compact,
+	height = 260,
 }: {
 	metrics: MetricsPayload | null
 	style?: CSSProperties
 	fps?: number
-	compact?: boolean
+	height?: number
 }): JSX.Element {
 	const cpu = metrics?.cpu.total ?? 0
 	const cores = metrics?.cpu.cores ?? []
@@ -39,10 +84,23 @@ export function SystemPanel({
 	const netValues = (metrics?.history.rx ?? []).map((value, index) => value + (metrics?.history.tx?.[index] ?? 0))
 	// 平台拿不到的行整行不画：宁可少一行，也别挂一排 `--`
 	const cap = metrics?.cap
-	const showFreq = cap ? cap.freq : true
-	const showSwap = cap ? cap.swap : true
-	const showNet = cap ? cap.net : true
-	const showLoad = cap ? cap.load : true
+	const rows = systemRows(
+		height,
+		cores.length || metrics?.host.cores || 1,
+		{
+			freq: cap ? cap.freq : true,
+			swap: cap ? cap.swap : true,
+			net: cap ? cap.net : true,
+			load: cap ? cap.load : true,
+		},
+	)
+	const showFreq = rows.has('freq')
+	const showArch = rows.has('arch')
+	const showSwap = rows.has('swap')
+	const showDisk = rows.has('disk')
+	const showNet = rows.has('net')
+	const showLoad = rows.has('load')
+	const showUp = rows.has('up')
 	const showPower = cap ? cap.power : true
 	return (
 		<Panel title="SYS · MONITOR" meta={fps ? `FLD ${fps}FPS` : 'LIVE'} style={style}>
@@ -78,17 +136,14 @@ export function SystemPanel({
 					</span>
 				</div>
 			)}
-			<div className="dos-row">
-				<span className="dos-k">ARCH</span>
-				<span className="dos-v">
-					<small>{metrics ? `${metrics.host.platform} · ${metrics.host.arch}` : '--'}</small>
-				</span>
-			</div>
-			{!showNet && (
+			{showArch && (
 				<div className="dos-row">
-					<span className="dos-k">MODE</span>
+					<span className="dos-k">ARCH</span>
 					<span className="dos-v">
-						<small>portable · node:os</small>
+						<small>
+							{metrics ? `${metrics.host.platform} · ${metrics.host.arch}` : '--'}
+							{showNet ? '' : ' · node:os'}
+						</small>
 					</span>
 				</div>
 			)}
@@ -116,23 +171,26 @@ export function SystemPanel({
 					</span>
 				</div>
 			)}
-			<div className="dos-row">
-				<span className="dos-k">DSK</span>
-				<span className="dos-v">
-					<Meter value={diskPercent} width={5} tone={diskPercent > 90 ? 'hot' : 'ghost'} />
-					<small> {metrics ? `${bytes(metrics.disk.used)}/${bytes(metrics.disk.total)}` : '--'}</small>
-				</span>
-			</div>
+			{showDisk && (
+				<div className="dos-row">
+					<span className="dos-k">DSK</span>
+					<span className="dos-v">
+						<Meter value={diskPercent} width={5} tone={diskPercent > 90 ? 'hot' : 'ghost'} />
+						<small> {metrics ? `${bytes(metrics.disk.used)}/${bytes(metrics.disk.total)}` : '--'}</small>
+					</span>
+				</div>
+			)}
 			<div className="dos-rule" />
 			{showNet && (
 				<>
 					<div className="dos-row">
 						<span className="dos-k">NET</span>
 						<span className="dos-v">
-							<small>{metrics?.net.iface ?? '--'}</small> ↓{metrics ? rate(metrics.net.rxBps) : '--'} ↑{metrics ? rate(metrics.net.txBps) : '--'}
+							<small>{metrics?.net.iface ?? '--'}</small> ↓{metrics ? rate(metrics.net.rxBps) : '--'} ↑
+							{metrics ? rate(metrics.net.txBps) : '--'}
 						</span>
 					</div>
-					<Sparkline values={netValues} height={16} />
+					<Sparkline values={netValues} height={16} format={(value) => rate(value)} />
 				</>
 			)}
 			{showLoad && (
@@ -141,127 +199,14 @@ export function SystemPanel({
 					<span className="dos-v">{metrics ? metrics.load.map((value) => value.toFixed(2)).join(' ') : '-- -- --'}</span>
 				</div>
 			)}
-			{!compact && showPower && (
-			<div className="dos-row">
-				<span className="dos-k">BAT</span>
-				<span className="dos-v">
-					{metrics?.power.batteryPercent !== null && metrics?.power.batteryPercent !== undefined
-						? `${metrics.power.batteryPercent}%`
-						: '--'}
-					<small>
-						{' '}
-						{metrics?.power.batteryStatus ?? ''}
-						{metrics?.power.batteryTempC ? ` ${metrics.power.batteryTempC.toFixed(1)}°C` : ''}
-					</small>
-				</span>
-			</div>
-			)}
-		</Panel>
-	)
-}
-
-function contextLine(context: ContextStat | null): { percent: number; label: string } {
-	if (!context || (!context.pressure && !context.projected)) return { percent: 0, label: '--' }
-	const used = context.projected ?? context.pressure ?? 0
-	const window = context.window ?? 0
-	return {
-		percent: window > 0 ? (used / window) * 100 : 0,
-		label: window > 0 ? `${tokens(used)}/${tokens(window)}` : tokens(used),
-	}
-}
-
-/** 右侧：DSH 侧统计。 */
-export function HarnessPanel({
-	harness,
-	metrics,
-	style,
-	fps,
-	compact,
-}: {
-	harness: HarnessSnapshot
-	metrics: MetricsPayload | null
-	style?: CSSProperties
-	fps?: number
-	compact?: boolean
-}): JSX.Element {
-	const context = contextLine(harness.context)
-	const node = metrics?.node
-	const heapPercent = node && node.heapTotal > 0 ? (node.heapUsed / node.heapTotal) * 100 : 0
-	return (
-		<Panel
-			title="HARNESS · CORE"
-			meta={
-				<span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-					<i className="dos-led" data-tone={harness.running > 0 ? 'hot' : 'idle'} data-pulse={harness.running > 0 ? '1' : undefined} />
-					{harness.running > 0 ? 'BUSY' : 'IDLE'}
-				</span>
-			}
-			style={style}
-			tone={harness.running > 0 ? undefined : undefined}
-		>
-			<Row
-				label="SESSIONS"
-				value={
-					<>
-						{harness.running}
-						<small> running / {harness.total} total</small>
-					</>
-				}
-				tone={harness.running > 0 ? 'ok' : undefined}
-			/>
-			<Row label="WORKSPACE" value={shorten(harness.workspace, 18)} />
-			<Row label="PRESET" value={shorten(harness.model, 18)} />
-			<div className="dos-rule" />
-			<SubTitle>Context pressure</SubTitle>
-			<div className="dos-row">
-				<span className="dos-k">{shorten(harness.context?.sessionTitle ?? 'no session', 14)}</span>
-				<span className="dos-v" data-tone={context.percent >= 85 ? 'hot' : context.percent >= 65 ? 'warn' : undefined}>
-					{context.percent > 0 ? percent(context.percent) : '--'}
-				</span>
-			</div>
-			<div className="dos-row">
-				<Meter value={context.percent} width={18} />
-				<span className="dos-v">
-					<small>{context.label}</small>
-				</span>
-			</div>
-			<div className="dos-grid2">
-				<Row label="IN" value={tokens(harness.context?.input)} />
-				<Row label="OUT" value={tokens(harness.context?.output)} />
-				<Row label="CACHE R" value={tokens(harness.context?.cacheRead)} />
-				{!compact && <Row label="CACHE W" value={tokens(harness.context?.cacheWrite)} />}
-			</div>
-			<div className="dos-rule" />
-			<SubTitle>Runtime · node {node ? node.version.replace('v', '') : '--'}</SubTitle>
-			<Row
-				label="RSS"
-				value={
-					<>
-						{node ? bytes(node.rss) : '--'}
-						<small> heap {node ? percent(heapPercent) : '--'}</small>
-					</>
-				}
-			/>
-			<Row
-				label="LOOP"
-				value={
-					<>
-						{node ? `${node.lagMs.toFixed(1)}ms` : '--'}
-						<small> elu {node ? `${Math.round(node.elu)}%` : '--'}</small>
-					</>
-				}
-				tone={node && node.lagMs > 40 ? 'warn' : undefined}
-			/>
-			<Row label="UPTIME" value={metrics ? duration(metrics.host.uptimeSec) : '--'} />
-			{!compact && (metrics?.cap?.proc !== false) && (
-				<Row label="PROCS" value={<>{metrics?.proc.total ?? '--'} <small>runq {metrics?.proc.running ?? '--'}</small></>} />
-			)}
-			{!compact && <div className="dos-spacer" />}
-			{!compact && (
+			{showUp && (
 				<div className="dos-row">
-					<span className="dos-k">GLYPH</span>
+					<span className="dos-k">UP</span>
 					<span className="dos-v">
-						<small>topology {fps ? `${fps}fps` : 'idle'}</small>
+						<small>{metrics ? duration(metrics.host.uptimeSec) : '--'}</small>
+						{showPower && metrics?.power.batteryPercent !== null && metrics?.power.batteryPercent !== undefined ? (
+							<small> · bat {metrics.power.batteryPercent}%</small>
+						) : null}
 					</span>
 				</div>
 			)}
@@ -269,44 +214,147 @@ export function HarnessPanel({
 	)
 }
 
-/** 左下：最近会话，可点击打开。 */
+/** 右上：当前工作区的会话总览 + Node 运行时。 */
+export function WorkspacePanel({
+	harness,
+	metrics,
+	scope,
+	style,
+	compact,
+	now,
+}: {
+	harness: HarnessPayload
+	metrics: MetricsPayload | null
+	scope: 'space' | 'all'
+	style?: CSSProperties
+	compact?: boolean
+	now: number
+}): JSX.Element {
+	const stats: ScopeStats = scope === 'all' ? harness.all : harness.space
+	const node = metrics?.node
+	const busy = stats.running > 0 || stats.subagents > 0
+	const label = scope === 'all' ? 'ALL WORKSPACES' : harness.scope.name || '—'
+	return (
+		<Panel
+			title="WORKSPACE · OVERVIEW"
+			meta={
+				<span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+					<i className="dos-led" data-tone={busy ? 'hot' : 'idle'} data-pulse={busy ? '1' : undefined} />
+					{busy ? 'BUSY' : 'IDLE'}
+				</span>
+			}
+			style={style}
+		>
+			<Row label={scope === 'all' ? 'SCOPE' : 'WORKSPACE'} value={shorten(label, 18)} />
+			<Row
+				label="SESSIONS"
+				value={
+					<>
+						{stats.sessions}
+						<small> · {stats.active} in 7d</small>
+					</>
+				}
+			/>
+			<Row
+				label="NOW"
+				value={
+					<>
+						{stats.running}
+						<small> running · {stats.subagents} sub</small>
+					</>
+				}
+				tone={busy ? 'ok' : undefined}
+			/>
+			<div className="dos-rule" />
+			<Row
+				label="TODAY"
+				value={
+					<>
+						{tokens(stats.today.input + stats.today.output)}
+						<small> new · {tokens(stats.today.cacheRead)} cached · {stats.today.sessions} sess</small>
+					</>
+				}
+			/>
+			<Row
+				label="TOKENS"
+				value={
+					<>
+						{tokens(stats.tokens.input)}
+						<small> in / {tokens(stats.tokens.output)} out</small>
+					</>
+				}
+			/>
+			<Row label="CACHE" value={percent(cacheRatio(stats.tokens))} tone={cacheRatio(stats.tokens) > 80 ? 'ok' : undefined} />
+			{!compact && (
+				<Row
+					label="LAST"
+					value={
+						<>
+							{stats.lastActiveAt ? ago(stats.lastActiveAt, now) : '--'}
+							<small> · {stats.topModel ? shorten(stats.topModel, 14) : '--'}</small>
+						</>
+					}
+				/>
+			)}
+			{!compact && (
+				<div className="dos-row">
+					<span className="dos-k">RUNTIME</span>
+					<span className="dos-v">
+						<small>
+							rss {node ? bytes(node.rss) : '--'} · loop {node ? `${node.lagMs.toFixed(1)}ms` : '--'} ·{' '}
+							{metrics?.cap?.proc === false ? 'n/a' : `${metrics?.proc.total ?? '--'} proc`}
+						</small>
+					</span>
+				</div>
+			)}
+		</Panel>
+	)
+}
+
+/** 左下：工作区最近会话，点击直接打开。 */
 export function SessionsPanel({
 	sessions,
 	style,
 	onOpen,
+	now,
 	compact,
 }: {
-	sessions: HarnessSession[]
+	sessions: HarnessSessionRow[]
 	style?: CSSProperties
 	onOpen: (id: string) => void
+	now: number
 	compact?: boolean
 }): JSX.Element {
+	const limit = compact ? 2 : 3
+	const shown = Math.min(limit, sessions.length)
 	return (
-		<Panel title="SESSIONS · RECENT" meta={`${sessions.length}`} style={style}>
+		<Panel title="SESSIONS · RECENT" meta={shown === sessions.length ? `${sessions.length}` : `${shown}/${sessions.length}`} style={style}>
 			{sessions.length === 0 ? (
 				<div className="dos-row">
-					<span className="dos-k">no sessions recorded</span>
+					<span className="dos-k">no sessions yet</span>
 				</div>
 			) : (
-				sessions.slice(0, compact ? 3 : 4).map((session, index) => (
+				sessions.slice(0, limit).map((session) => (
 					<div
 						className="dos-session"
 						key={session.id}
 						onClick={() => onOpen(session.id)}
 						role="button"
 						tabIndex={0}
+						title={`${session.title}\n${session.cwd}\n${session.model} · in ${session.input} / out ${session.output}`}
 						onKeyDown={(event) => {
 							if (event.key === 'Enter') onOpen(session.id)
 						}}
 					>
-						<span className="idx">{String(index + 1).padStart(2, '0')}</span>
 						<i
 							className="dos-led"
-							data-tone={session.running ? 'hot' : 'idle'}
-							data-pulse={session.running ? '1' : undefined}
+							data-tone={session.running || session.subagentActive ? 'hot' : 'idle'}
+							data-pulse={session.running || session.subagentActive ? '1' : undefined}
 						/>
-						<span className="t">{shorten(session.title, 22)}</span>
-						<span className="age">{ago(session.updatedAt)}</span>
+						<span className="t">{shorten(session.title, 20)}</span>
+						<span className="m">{shorten(session.model.split('/').pop() ?? session.model, 8)}</span>
+						<span className="tok">{tokens(session.input + session.output)}</span>
+						<span className="age">{ago(session.updatedAt, now)}</span>
 					</div>
 				))
 			)}
@@ -314,104 +362,137 @@ export function SessionsPanel({
 			<div className="dos-row">
 				<span className="dos-k">cwd</span>
 				<span className="dos-v">
-					<small>{shorten(basename(sessions[0]?.workspace), 24)}</small>
+					<small>{shorten(sessions[0]?.cwd ?? '—', 26)}</small>
 				</span>
 			</div>
 		</Panel>
 	)
 }
 
-/** 底部：滚动控制台。 */
-export function ConsolePanel({
-	logs,
-	style,
-	now,
-}: {
-	logs: LogLine[]
-	style?: CSSProperties
-	now: number
-}): JSX.Element {
-	return (
-		<section className="dos-console" style={style}>
-			{logs.slice(-4).map((line, index, visible) => (
-				<div
-					className="dos-console-line"
-					key={`${line.at}-${index}`}
-					data-tone={line.tone}
-					data-fresh={index === visible.length - 1 ? '1' : undefined}
-				>
-					<span className="ts">{clock(line.at)}</span>
-					<span className="tag">{line.tag}</span>
-					<span className="msg">{line.msg}</span>
-				</div>
-			))}
-			<div className="dos-prompt">
-				<span>dsh@harness</span>
-				<span className="path">:~$</span>
-				<span className="dos-cursor" />
-				<span className="path" style={{ marginLeft: 8 }}>
-					{clock(now)} · telemetry 2s · glyph field linked
-				</span>
-			</div>
-		</section>
-	)
+/** 索引的新鲜度：一分钟内报秒，之后报相对时间。 */
+function scanAge(scannedAt: number): string {
+	if (!scannedAt) return '--'
+	const seconds = Math.max(0, Math.round((Date.now() - scannedAt) / 1000))
+	return seconds < 60 ? `${seconds}s 前` : `${ago(scannedAt)} 前`
 }
 
-/** 顶栏中部：按会话聚合的 token 账本。 */
-export function LedgerPanel({
-	rows,
-	totals,
-	style,
+/** 度量记录可能没有 modelSelection（大量 one-shot 子代理如此），给个不会撒谎的占位名。 */
+function modelLabel(row: ModelUsageRow): string {
+	if (row.provider && row.model) return `${row.provider}/${row.model}`
+	return row.model || row.provider || 'unknown'
+}
+
+const WINDOWS: { key: LedgerWindow; label: string; hint: string }[] = [
+	{ key: 'h24', label: '24H', hint: '最近 24 小时内有过活动的会话' },
+	{ key: 'd7', label: '7D', hint: '最近 7 天内有过活动的会话' },
+	{ key: 'all', label: 'ALL', hint: '全部历史会话' },
+]
+
+/**
+ * 底部宽窗格：按模型聚合的 token 账本。
+ *
+ * 点一行 = 回到该模型最近用过的那个会话——账本不只是报表，也是入口。
+ */
+export function ModelLedgerPanel({
+	harness,
+	models,
+	stats,
+	window,
+	onWindow,
+	scope,
 	onOpen,
+	style,
 	compact,
 }: {
-	rows: LedgerRow[]
-	totals: { input: number; output: number; cacheRead: number; cacheWrite: number }
-	style?: CSSProperties
+	harness: HarnessPayload
+	models: ModelUsageRow[]
+	stats: ScopeStats
+	window: LedgerWindow
+	onWindow: (next: LedgerWindow) => void
+	scope: 'space' | 'all'
 	onOpen: (id: string) => void
+	style?: CSSProperties
 	compact?: boolean
 }): JSX.Element {
-	const cacheRatio =
-		totals.input + totals.cacheRead > 0 ? (totals.cacheRead / (totals.input + totals.cacheRead)) * 100 : 0
-	const visible = compact ? rows.slice(0, 4) : rows
+	const usage = stats.windows[window]
+	const peak = Math.max(1, ...models.map((row) => row.input + row.output + row.cacheRead))
+	const visible = compact ? models.slice(0, 3) : models.slice(0, 4)
+	const ratio = cacheRatio({ input: usage.input, cacheRead: usage.cacheRead })
 	return (
-		<Panel title="TOKEN · LEDGER" meta={`${rows.length} SESSIONS`} style={style}>
+		<Panel
+			title="MODEL · LEDGER"
+			meta={
+				<span className="dos-meta-row">
+					<span className="dos-scope">{scope === 'all' ? 'ALL' : 'WS'}</span>
+					<Seg options={WINDOWS} value={window} onPick={onWindow} label="账本时间窗" />
+				</span>
+			}
+			style={style}
+		>
 			<div className="dos-ledger">
 				<div className="dos-ledger-head">
-					<span>session</span>
-					<span>preset</span>
+					<span>model</span>
+					<span className="n">sess</span>
 					<span className="n">input</span>
 					<span className="n">output</span>
 					<span className="n">cache</span>
 					<span className="n">tps</span>
+					<span className="n">share</span>
 				</div>
 				{visible.length === 0 ? (
-					<div className="dos-ledger-empty">尚无 token 投影 · 打开一个会话后开始记账</div>
+					<div className="dos-ledger-empty">
+						{harness.store.ok ? '该时间窗内没有 token 记录' : `投影缓存不可用${harness.store.error ? ` · ${harness.store.error}` : ''}`}
+					</div>
 				) : (
-					visible.map((row) => (
-						<div className="dos-ledger-row" key={row.id} onClick={() => onOpen(row.id)} role="button" tabIndex={0}
-							onKeyDown={(event) => {
-								if (event.key === 'Enter') onOpen(row.id)
-							}}
-						>
-							<span className="t">{shorten(row.title, compact ? 22 : 34)}</span>
-							<span className="p">{row.preset}</span>
-							<span className="n">{tokens(row.input)}</span>
-							<span className="n">{tokens(row.output)}</span>
-							<span className="n">{row.cacheRatio > 0 ? percent(row.cacheRatio * 100) : '--'}</span>
-							<span className="n">{row.tps !== null ? row.tps.toFixed(0) : '--'}</span>
-						</div>
-					))
+					visible.map((row) => {
+						const total = row.input + row.output + row.cacheRead
+						const label = modelLabel(row)
+						return (
+							<div
+								className="dos-ledger-row"
+								key={`${row.provider}/${row.model}`}
+								data-clickable={row.lastSessionId ? '1' : undefined}
+								onClick={() => row.lastSessionId && onOpen(row.lastSessionId)}
+								role={row.lastSessionId ? 'button' : undefined}
+								tabIndex={row.lastSessionId ? 0 : undefined}
+								title={`${label}\n${row.sessions} sessions · 最近 ${ago(row.lastAt)}${row.lastSessionId ? '\n点击回到该模型最近用过的会话' : ''}`}
+								onKeyDown={(event) => {
+									if (event.key === 'Enter' && row.lastSessionId) onOpen(row.lastSessionId)
+								}}
+							>
+								<span className="t">{shorten(label, compact ? 20 : 30)}</span>
+								<span className="n">{row.sessions}</span>
+								<span className="n">{tokens(row.input)}</span>
+								<span className="n">{tokens(row.output)}</span>
+								<span className="n">{percent(row.cacheRatio * 100)}</span>
+								<span className="n">{row.tps !== null ? row.tps.toFixed(0) : '--'}</span>
+								<span className="n">
+									<Meter value={(total / peak) * 100} width={6} tone="ghost" />
+								</span>
+							</div>
+						)
+					})
 				)}
 				<div className="dos-ledger-total">
 					<span>total</span>
-					<span />
-					<span className="n">{tokens(totals.input)}</span>
-					<span className="n">{tokens(totals.output)}</span>
-					<span className="n">{cacheRatio > 0 ? percent(cacheRatio) : '--'}</span>
+					<span className="n">{usage.sessions}</span>
+					<span className="n">{tokens(usage.input)}</span>
+					<span className="n">{tokens(usage.output)}</span>
+					<span className="n">{percent(ratio)}</span>
+					<span className="n" />
 					<span className="n" />
 				</div>
 			</div>
+			{!compact && (
+				<>
+					<SubTitle>
+						{tokens(usage.cacheRead)} cached reads · 索引 {harness.store.ok ? harness.store.sessions : '--'} 条 ·{' '}
+						{scanAge(harness.store.scannedAt)}
+					</SubTitle>
+				</>
+			)}
 		</Panel>
 	)
 }
+
+export { WINDOWS }

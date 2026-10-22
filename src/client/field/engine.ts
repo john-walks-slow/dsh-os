@@ -11,7 +11,7 @@
  * @module dsh-os/field/engine
  */
 
-import type { Pattern } from '../settings'
+import type { Pattern, Tone } from '../settings'
 import { CHAN_COLOR, CHAN_GLYPHS, CHAN_HEIGHT, CHAN_LIGHT, CHAN_WIDTH } from './chan-art'
 import { fbm, hash2 } from './noise'
 
@@ -50,6 +50,12 @@ const DEFAULT_INKS = [
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((value) => value / 16)
 
+/** 底纸：深色是夜里的玻璃，浅色是纸面。字符场的墨色要跟它配套。 */
+const SURFACES: Record<Tone, [string, string, string]> = {
+	dark: ['#04070b', '#050a0f', '#020407'],
+	light: ['#eef1f7', '#e8edf6', '#f4f6fb'],
+}
+
 const LEVELS = [-0.46, -0.2, 0.08, 0.36, 0.62]
 
 export interface ClearRect {
@@ -62,6 +68,8 @@ export interface ClearRect {
 export interface FieldOptions {
 	pattern?: Pattern
 	reduced?: boolean
+	/** 底纸明暗，默认深色。 */
+	tone?: Tone
 }
 
 export interface FieldHandle {
@@ -72,6 +80,8 @@ export interface FieldHandle {
 	setClearRect: (rect: ClearRect | null) => void
 	setStage: (rect: ClearRect | null) => void
 	setPalette: (inks: string[], accent?: string) => void
+	/** 换底纸：明暗切换时重画背景渐变。 */
+	setSurface: (tone: Tone) => void
 	fps: () => number
 }
 
@@ -114,6 +124,7 @@ export function createGlyphField(canvas: HTMLCanvasElement, options: FieldOption
 		reduced: options.reduced === true,
 		inks: DEFAULT_INKS.slice(),
 		accent: [46, 232, 212] as [number, number, number],
+		tone: (options.tone ?? 'dark') as Tone,
 	}
 
 	let dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
@@ -207,10 +218,16 @@ export function createGlyphField(canvas: HTMLCanvasElement, options: FieldOption
 		buildAtlas()
 		buildPortraitAtlas()
 		context.imageSmoothingEnabled = false
+		buildBackground()
+	}
+
+	/** 底纸渐变：跟着 tone 走，换墨色时不会露出上一套底色。 */
+	function buildBackground(): void {
+		const [near, mid, far] = SURFACES[state.tone]
 		background = context.createLinearGradient(0, 0, width * 0.25, height)
-		background.addColorStop(0, '#04070b')
-		background.addColorStop(0.55, '#050a0f')
-		background.addColorStop(1, '#020407')
+		background.addColorStop(0, near)
+		background.addColorStop(0.55, mid)
+		background.addColorStop(1, far)
 	}
 
 	/** hero 周围的椭圆让位系数：0 表示完全退到地纹里，1 表示原样。 */
@@ -232,7 +249,7 @@ export function createGlyphField(canvas: HTMLCanvasElement, options: FieldOption
 	function paintBackground(): void {
 		context.setTransform(1, 0, 0, 1, 0, 0)
 		context.clearRect(0, 0, canvas.width, canvas.height)
-		context.fillStyle = background ?? '#03060a'
+		context.fillStyle = background ?? SURFACES[state.tone][2]
 		context.fillRect(0, 0, canvas.width, canvas.height)
 		context.setTransform(dpr, 0, 0, dpr, 0, 0)
 	}
@@ -658,6 +675,12 @@ export function createGlyphField(canvas: HTMLCanvasElement, options: FieldOption
 			if (accent) state.accent = parseColor(accent)
 			buildAtlas()
 			buildPortraitAtlas()
+		},
+		setSurface(tone: Tone): void {
+			if (tone === state.tone) return
+			state.tone = tone
+			buildBackground()
+			if (!state.running || state.reduced) paintBackground()
 		},
 		fps: (): number => state.fps,
 	}

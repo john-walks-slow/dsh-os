@@ -1,78 +1,79 @@
 {
-  "name": "dsh-os",
-  "version": "0.1.2",
-  "description": "DeepSeek Harness OS: turn the DSH Web home page into a cyberpunk terminal desktop — animated ASCII field, boot self-test, and a live system/harness telemetry HUD. dsh-os：把 DSH Web 首页变成一台赛博终端桌面——ASCII 字符场动效、开机自检、真实系统与 Harness 参数监控 HUD。",
-  "license": "MIT",
-  "type": "module",
-  "main": "lib/index.js",
-  "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js",
-    "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "lib",
-    "cordis.patch.yml",
-    "README.md",
-    "README.en.md",
-    "LICENSE",
-    "screenshots",
-    "screenshots.json"
-  ],
-  "scripts": {
-    "build": "node build.mjs && node --check lib/index.js && node --check lib/client.js",
-    "typecheck": "tsc --noEmit",
-    "shot": "node tools/shot.mjs",
-    "e2e": "dsh-e2e run e2e/smoke.mjs",
-    "prepack": "npm run build"
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "immediately": true
-    }
-  },
-  "keywords": [
-    "dsh",
-    "dsh-plugin",
-    "deepseek-harness",
-    "web-ui",
-    "home",
-    "cyberpunk",
-    "ascii-art",
-    "terminal",
-    "crt",
-    "monitor",
-    "dashboard",
-    "telemetry",
-    "首页",
-    "赛博朋克",
-    "字符画",
-    "系统监控"
-  ],
-  "author": "johnnren",
-  "devDependencies": {
-    "@types/node": "^22.20.5",
-    "@types/react": "~18.3.12",
-    "@types/react-dom": "~18.3.1",
-    "esbuild": "^0.25.0",
-    "react": "~18.3.1",
-    "react-dom": "~18.3.1",
-    "typescript": "^5.9.3"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/john-walks-slow/dsh-os.git"
-  },
-  "homepage": "https://github.com/john-walks-slow/dsh-os#readme",
-  "bugs": {
-    "url": "https://github.com/john-walks-slow/dsh-os/issues"
-  },
-  "engines": {
-    "node": ">=20"
-  }
+	"name": "dsh-os",
+	"version": "0.2.0",
+	"description": "DeepSeek Harness OS: turn the DSH Web home page into a cyberpunk terminal desktop — animated ASCII field, boot self-test, and a live host/harness HUD with a real per-model token ledger. dsh-os：把 DSH Web 首页变成一台赛博终端桌面——ASCII 字符场动效、开机自检、真实系统与会话 Token 账本监控 HUD。",
+	"license": "MIT",
+	"type": "module",
+	"main": "lib/index.js",
+	"exports": {
+		".": "./lib/index.js",
+		"./client": "./lib/client.js",
+		"./cordis.patch.yml": "./cordis.patch.yml",
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"lib",
+		"cordis.patch.yml",
+		"README.md",
+		"README.en.md",
+		"LICENSE",
+		"screenshots",
+		"screenshots.json"
+	],
+	"scripts": {
+		"build": "node build.mjs && node --check lib/index.js && node --check lib/client.js",
+		"typecheck": "tsc --noEmit",
+		"shot": "node tools/shot.mjs",
+		"e2e": "dsh-e2e run e2e/smoke.mjs",
+		"prepack": "npm run build",
+		"e2e:shots": "dsh-e2e run e2e/shots.mjs"
+	},
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"immediately": true
+		}
+	},
+	"keywords": [
+		"dsh",
+		"dsh-plugin",
+		"deepseek-harness",
+		"web-ui",
+		"home",
+		"cyberpunk",
+		"ascii-art",
+		"terminal",
+		"crt",
+		"monitor",
+		"dashboard",
+		"telemetry",
+		"首页",
+		"赛博朋克",
+		"字符画",
+		"系统监控"
+	],
+	"author": "johnnren",
+	"devDependencies": {
+		"@types/node": "^22.20.5",
+		"@types/react": "~18.3.12",
+		"@types/react-dom": "~18.3.1",
+		"esbuild": "^0.25.0",
+		"react": "~18.3.1",
+		"react-dom": "~18.3.1",
+		"typescript": "^5.9.3"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/john-walks-slow/dsh-os.git"
+	},
+	"homepage": "https://github.com/john-walks-slow/dsh-os#readme",
+	"bugs": {
+		"url": "https://github.com/john-walks-slow/dsh-os/issues"
+	},
+	"engines": {
+		"node": ">=20"
+	}
 }

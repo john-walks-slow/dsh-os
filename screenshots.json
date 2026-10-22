@@ -1,7 +1,11 @@
 [
   {
     "path": "screenshots/home-rain.png",
-    "description": "DSH-OS 默认蓝调主题 + 稀疏字符雨背景 + 终端化侧边栏与输入框皮肤"
+    "description": "深色桌面：稀疏字符雨背景 + SYS·MONITOR / WORKSPACE·OVERVIEW / SESSIONS·RECENT / MODEL·LEDGER 四块窗格与任务栏"
+  },
+  {
+    "path": "screenshots/home-light.png",
+    "description": "浅色桌面（纸面蓝图）：跟随宿主主题的另一套墨色，窗格与字符场同步换底"
   },
   {
     "path": "screenshots/home-dshchan.png",
@@ -12,15 +16,15 @@
     "description": "等高线拓扑动效背景（field pattern）模式"
   },
   {
-    "path": "screenshots/settings.png",
-    "description": "内置设置页：背景动效、主题色、开机自检与原生皮肤开关"
-  },
-  {
     "path": "screenshots/boot.png",
-    "description": "开机自检序列（POST boot sequence）动效"
+    "description": "开机自检序列（POST boot sequence），读数全部来自真实采样"
   },
   {
     "path": "screenshots/home-mobile.png",
-    "description": "窄屏移动端自适应（收起窗格保留高密度状态条）"
+    "description": "窄屏移动端自适应：收起窗格，保留高密度状态条与任务栏"
+  },
+  {
+    "path": "screenshots/settings.png",
+    "description": "内置设置页：桌面层开关、明暗墨色、背景动效、主题色与输入框皮肤"
   }
 ]

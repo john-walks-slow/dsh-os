@@ -1,14 +1,14 @@
 /**
- * 设置页（settings.section）：背景图案、主题色、原生皮肤开关。
+ * 设置页（settings.section）：桌面层开关、明暗、背景图案、主题色、输入框皮肤。
  *
- * 控件用宿主主题变量着色，所以在浅色/深色盘下都像原生设置项；真正的
- * 观感改动发生在 HUD 与字符场里。
+ * 控件用宿主主题变量着色，所以在浅色/深色盘下都像原生设置项；真正的观感改动
+ * 发生在 HUD 与字符场里。
  *
  * @module dsh-os/os/settings-panel
  */
 
 import { useSyncExternalStore } from 'react'
-import { ACCENTS, PATTERNS, type AccentName, type Pattern, type SettingsStore } from '../settings'
+import { ACCENTS, PATTERNS, TONES, type AccentName, type Pattern, type SettingsStore, type ToneChoice } from '../settings'
 
 interface OsSettingsPanelProps {
 	store: SettingsStore
@@ -30,15 +30,7 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (next: boolean
 	)
 }
 
-function Field({
-	title,
-	hint,
-	children,
-}: {
-	title: string
-	hint?: string
-	children: JSX.Element
-}): JSX.Element {
+function Field({ title, hint, children }: { title: string; hint?: string; children: JSX.Element }): JSX.Element {
 	return (
 		<div className="dso-field">
 			<div className="dso-field-text">
@@ -54,11 +46,14 @@ export function OsSettingsPanel({ store }: OsSettingsPanelProps): JSX.Element {
 	const settings = useSyncExternalStore(store.subscribe, () => store.value)
 	const patterns = Object.entries(PATTERNS) as [Pattern, { label: string; blurb: string }][]
 	const accents = Object.entries(ACCENTS) as [Exclude<AccentName, 'custom'>, { key: string }][]
+	const tones = Object.entries(TONES) as [ToneChoice, { label: string }][]
 	return (
 		<section className="dso-settings">
 			<header className="dso-header">
 				<h2>DeepSeek Harness OS</h2>
-				<p>首页桌面层：字符场背景、开机自检、原生界面皮肤与 Token 账本。这些选项只影响浏览器观感，不改动会话数据。</p>
+				<p>
+					首页桌面层：字符场背景、开机自检、深浅色墨色与参数监控。桌面上的数字全部来自本机真实读数与会话投影缓存，这些选项只改观感，不动会话数据。
+				</p>
 			</header>
 
 			<div className="dso-group">
@@ -68,8 +63,33 @@ export function OsSettingsPanel({ store }: OsSettingsPanelProps): JSX.Element {
 				<Field title="开机自检" hint="首次进入标签页时播放 POST 序列，可按任意键跳过。">
 					<Toggle label="开机自检" on={settings.boot} onChange={(boot) => store.set({ boot })} />
 				</Field>
-				<Field title="Token 账本" hint="按会话统计输入/输出/缓存命中与解码速度；没有投影数据的会话显示为空。">
-					<Toggle label="Token 账本" on={settings.ledger} onChange={(ledger) => store.set({ ledger })} />
+				<Field
+					title="模型账本"
+					hint="按模型聚合全部历史会话的 token 用量；点一行回到该模型最近用过的会话。桌面上也可用 WS / ALL 切换口径。"
+				>
+					<Toggle label="模型账本" on={settings.ledger} onChange={(ledger) => store.set({ ledger })} />
+				</Field>
+				<Field title="输入框皮肤" hint="把 hero 输入框换成一扇终端窗：与桌面同底的渐变、主色描边。">
+					<Toggle label="输入框皮肤" on={settings.skinComposer} onChange={(skinComposer) => store.set({ skinComposer })} />
+				</Field>
+			</div>
+
+			<h3 className="dso-section">明暗</h3>
+			<div className="dso-group">
+				<Field title="墨色" hint="跟随宿主时，宿主切深浅色桌面一起换（桌面不再强行改写宿主的主题）。">
+					<span className="dso-seg">
+						{tones.map(([key, meta]) => (
+							<button
+								key={key}
+								type="button"
+								className="dso-seg-item"
+								data-on={settings.tone === key ? 'true' : 'false'}
+								onClick={() => store.set({ tone: key })}
+							>
+								{meta.label}
+							</button>
+						))}
+					</span>
 				</Field>
 			</div>
 
@@ -117,16 +137,6 @@ export function OsSettingsPanel({ store }: OsSettingsPanelProps): JSX.Element {
 					/>
 					<span>自定义</span>
 				</label>
-			</div>
-
-			<h3 className="dso-section">原生界面皮肤</h3>
-			<div className="dso-group">
-				<Field title="侧边栏" hint="深色底、霓虹分隔线、New Session 描边按钮。">
-					<Toggle label="侧边栏皮肤" on={settings.skinSidebar} onChange={(skinSidebar) => store.set({ skinSidebar })} />
-				</Field>
-				<Field title="输入框" hint="把 hero 输入框换成一扇终端窗：暗色渐变、主色描边、发光提交键。">
-					<Toggle label="输入框皮肤" on={settings.skinComposer} onChange={(skinComposer) => store.set({ skinComposer })} />
-				</Field>
 			</div>
 
 			<footer className="dso-footer">

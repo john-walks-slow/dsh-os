@@ -286,7 +286,8 @@ export function readDisk(path = diskRoot()): DiskSnapshot | null {
 	try {
 		const stats = statfsSync(path)
 		const total = stats.blocks * stats.bsize
-		const free = stats.bavail * stats.bsize
+		// 用 bfree（文件系统空闲）而不是 bavail（非特权用户可用）：保留块会让 used 超过 total
+		const free = stats.bfree * stats.bsize
 		return { total, free, used: total - free }
 	} catch {
 		return null

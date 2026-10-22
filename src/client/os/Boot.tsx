@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { bytes, duration, percent } from '../format'
-import type { HarnessSnapshot, MetricsPayload } from '../types'
+import type { HarnessPayload, MetricsPayload } from '../types'
 
 const BANNER = [
 	'██████╗ ███████╗██╗  ██╗   ██████╗ ███████╗',
@@ -31,7 +31,7 @@ interface BootRow {
 	tone?: 'ok'
 }
 
-function buildRows(metrics: MetricsPayload | null, harness: HarnessSnapshot): BootRow[] {
+function buildRows(metrics: MetricsPayload | null, harness: HarnessPayload): BootRow[] {
 	const host = metrics?.host
 	const rows: BootRow[] = [
 		{ tag: 'mount', key: '/', value: metrics ? `${bytes(metrics.disk.total)} · ${percent((metrics.disk.used / Math.max(1, metrics.disk.total)) * 100)} used` : '…' },
@@ -39,8 +39,8 @@ function buildRows(metrics: MetricsPayload | null, harness: HarnessSnapshot): Bo
 		{ tag: 'mem', key: 'main', value: metrics ? `${bytes(metrics.mem.total * 1024)} · ${percent(metrics.mem.percent)} in use` : '…' },
 		{ tag: 'net', key: metrics?.cap?.net ? metrics.net.iface : 'host stack', value: metrics ? 'link up · telemetry bound' : '…' },
 		{ tag: 'harn', key: 'plugin tree', value: 'ok' },
-		{ tag: 'harn', key: 'session catalogue', value: `${harness.total} indexed · ${harness.running} running` },
-		{ tag: 'harn', key: 'preset', value: harness.model || 'default' },
+		{ tag: 'harn', key: 'session catalogue', value: `${harness.all.sessions} indexed · ${harness.all.running} running` },
+		{ tag: 'harn', key: 'token ledger', value: `${harness.models.all.length} models · ${harness.all.tokens.input + harness.all.tokens.output} tokens` },
 		{ tag: 'glyph', key: 'field topology', value: 'mounted · 12 fps' },
 		{ tag: 'node', key: metrics ? `pid ${metrics.node.pid}` : 'pid …', value: metrics ? `${bytes(metrics.node.rss)} rss · ${duration(metrics.node.uptimeSec)} up` : '…' },
 		{ tag: 'boot', key: 'complete', value: 'entering harness', tone: 'ok' },
@@ -54,7 +54,7 @@ export function Boot({
 	onDone,
 }: {
 	metrics: MetricsPayload | null
-	harness: HarnessSnapshot
+	harness: HarnessPayload
 	onDone: () => void
 }): JSX.Element {
 	const rows = buildRows(metrics, harness)
@@ -101,7 +101,7 @@ export function Boot({
 			<div className="dos-boot-meta">
 				<span>deepseek harness · operating system</span>
 				<span>
-					version <b>1.0.0</b>
+					version <b>2.0.0</b>
 				</span>
 				<span>
 					build <b>2026.10-{String(Math.floor(((metrics?.t ?? Date.now()) / 60000) % 9999)).padStart(4, '0')}</b>
@@ -129,7 +129,7 @@ export function Boot({
 				<span>{progress}%</span>
 				<span style={{ marginLeft: 'auto' }}>telemetry link · secure</span>
 			</div>
-			<div className="dos-boot-foot">press any key to skip · dsh-os 1.0.0</div>
+			<div className="dos-boot-foot">press any key to skip · dsh-os 2.0.0</div>
 			</div>
 		</div>
 	)

@@ -1,10 +1,14 @@
 /**
- * dsh-os 的全部样式：一层注入的 <style>，命名空间 `.dos-`。
+ * dsh-os 的全部样式：一层注入的 <style>，命名空间 `.dos-`（桌面）与 `.dso-`
+ * （设置页）。
  *
  * 三个职责：
  *   1. 桌面背景：把首页的 frame 底色打透，让字符场成为壁纸；
  *   2. HUD 语汇：终端窗格、ASCII 仪表、扫描线与暗角；
- *   3. 响应式：窄屏收起两侧窗格，只留状态条。
+ *   3. 响应式：窄屏收起窗格，只留状态条。
+ *
+ * 颜色分两处：主题色由 settings.ts 摊成 `--dos-*` 变量（深/浅各一套），
+ * 这里只写结构与排版，不再出现深色死值——否则浅色模式下必然花屏。
  *
  * @module dsh-os/styles
  */
@@ -13,51 +17,45 @@ export const STYLE_ID = 'dsh-os-style'
 
 export const CSS = `
 /* ── 桌面背景：只作用于首页（html.dsh-os-live） ─────────────────────── */
-html.dsh-os-live body { background: #04070b !important; }
+html.dsh-os-live body { background: var(--dos-bg, #04070b) !important; }
 html.dsh-os-live [data-slot="root"] > div { background-color: transparent !important; background-image: none !important; }
 html.dsh-os-live #dsh-os-field { opacity: 1; }
 html.dsh-os-live #root { position: relative; z-index: 1; }
 .dos-paint-through { background-color: transparent !important; background-image: none !important; }
 
-/* hero 背后压一层柔光暗角：标题与输入框在字符场上仍然读得清 */
+/* hero 背后压一层让位光晕：标题与输入框在字符场上仍然读得清 */
 html.dsh-os-live [class*="_composerHero"] { position: relative; }
 html.dsh-os-live [class*="_composerHero"]::before {
   content: ""; position: absolute; inset: -10% -7%; z-index: -1; pointer-events: none;
-  background: radial-gradient(58% 62% at 50% 46%, rgba(3,7,10,.86) 0%, rgba(3,7,10,.62) 52%, rgba(3,7,10,0) 78%);
+  background: var(--dos-field-veil);
 }
-#dsh-os-field canvas { opacity: .94; }
 
 #dsh-os-field {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   opacity: 0; transition: opacity .8s ease;
   contain: strict;
 }
-#dsh-os-field canvas { display: block; width: 100%; height: 100%; }
+#dsh-os-field canvas { display: block; width: 100%; height: 100%; opacity: var(--dos-field-opacity, .94); }
 #dsh-os-field::after {
   content: ""; position: absolute; inset: 0;
-  background:
-    repeating-linear-gradient(180deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px),
-    radial-gradient(120% 90% at 50% 42%, transparent 34%, rgba(0,0,0,.52) 100%);
+  background: var(--dos-field-scan), var(--dos-vignette);
   mix-blend-mode: multiply;
 }
 #dsh-os-field::before {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(var(--dos-rgb),.05), transparent 26%, transparent 74%, rgba(255,110,169,.04));
+  background: linear-gradient(180deg, var(--dos-sheen), transparent 26%, transparent 74%, var(--dos-sheen));
 }
 
 .dos-root, .dos-root *, .dos-root *::before, .dos-root *::after { box-sizing: border-box; }
 :root {
   --dos-cy: #5b8cff;
-  --dos-cy-dim: rgba(91,140,255,.42);
-  --dos-cy-faint: rgba(91,140,255,.14);
   --dos-mag: #ff6ea9;
   --dos-amber: #ffc061;
-  --dos-red: #ff5a6a;
+  --dos-bg: #04070b;
   --dos-ink: #e8efff;
   --dos-ink-dim: rgba(190,206,240,.58);
   --dos-ink-faint: rgba(164,182,220,.34);
   --dos-edge: rgba(91,140,255,.28);
-  --dos-panel: rgba(4,11,14,.62);
   --dos-rgb: 91,140,255;
 }
 
@@ -69,7 +67,7 @@ html.dsh-os-live [class*="_composerHero"]::before {
   font-size: 11.5px; line-height: 1.4;
   font-variant-ligatures: none;
   -webkit-font-smoothing: antialiased;
-  text-shadow: 0 1px 2px rgba(0,0,0,.75);
+  text-shadow: var(--dos-text-shadow);
   opacity: 1; transition: opacity .45s ease;
   user-select: none;
 }
@@ -79,49 +77,48 @@ html.dsh-os-live [class*="_composerHero"]::before {
 /* 全局扫描线 + 一条缓慢下行的亮带 */
 .dos-root::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    repeating-linear-gradient(180deg, rgba(255,255,255,.022) 0 1px, transparent 1px 3px);
+  background-image: repeating-linear-gradient(180deg, var(--dos-scan) 0 1px, transparent 1px 3px);
   opacity: .75;
 }
 .dos-root::after {
   content: ""; position: absolute; left: 0; right: 0; height: 18vh; pointer-events: none; z-index: 1;
-  background: linear-gradient(180deg, transparent, rgba(var(--dos-rgb),.02) 45%, rgba(var(--dos-rgb),.045) 50%, rgba(var(--dos-rgb),.02) 55%, transparent);
+  background: var(--dos-band);
   animation: dos-roll 13s linear infinite;
-  mix-blend-mode: screen;
+  mix-blend-mode: var(--dos-band-blend);
 }
 @keyframes dos-roll { from { transform: translateY(-20vh); } to { transform: translateY(115vh); } }
 @keyframes dos-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
 @keyframes dos-flicker { 0%, 100% { opacity: 1; } 47% { opacity: .82; } 48% { opacity: 1; } 71% { opacity: .93; } }
 @keyframes dos-scan-x { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 
-.dos-cursor { display: inline-block; width: .62em; height: 1.02em; margin-left: 2px; vertical-align: -2px; background: var(--dos-cy); animation: dos-blink 1.1s steps(1) infinite; box-shadow: 0 0 8px var(--dos-cy); }
-.dos-led { display: inline-block; width: 6px; height: 6px; border-radius: 1px; background: var(--dos-cy); box-shadow: 0 0 7px var(--dos-cy); }
-.dos-led[data-tone="hot"] { background: var(--dos-mag); box-shadow: 0 0 7px var(--dos-mag); }
-.dos-led[data-tone="warn"] { background: var(--dos-amber); box-shadow: 0 0 7px var(--dos-amber); }
+.dos-cursor { display: inline-block; width: .62em; height: 1.02em; margin-left: 2px; vertical-align: -2px; background: var(--dos-cy); animation: dos-blink 1.1s steps(1) infinite; box-shadow: var(--dos-led-shadow); }
+.dos-led { display: inline-block; width: 6px; height: 6px; border-radius: 1px; background: var(--dos-cy); box-shadow: var(--dos-led-shadow); }
+.dos-led[data-tone="hot"] { background: var(--dos-mag); box-shadow: var(--dos-led-shadow); }
+.dos-led[data-tone="warn"] { background: var(--dos-amber); box-shadow: var(--dos-led-shadow); }
 .dos-led[data-tone="idle"] { background: var(--dos-ink-faint); box-shadow: none; }
 .dos-led[data-pulse="1"] { animation: dos-blink 1.4s steps(1) infinite; }
 
 /* ── 顶栏 ──────────────────────────────────────────────────────────── */
-.dos-rail { position: absolute; display: flex; align-items: center; gap: 14px; height: 22px; padding: 0 6px; pointer-events: none; background: linear-gradient(90deg, rgba(3,8,11,.86), rgba(3,8,11,.55) 55%, rgba(3,8,11,.25)); }
+.dos-rail { position: absolute; display: flex; align-items: center; gap: 14px; height: 22px; padding: 0 6px; pointer-events: none; background: linear-gradient(90deg, var(--dos-scrim-a), var(--dos-scrim-b) 55%, var(--dos-scrim-c)); }
 .dos-rail-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.dos-mark { color: var(--dos-cy); letter-spacing: .16em; font-size: 12px; text-shadow: 0 0 12px rgba(var(--dos-rgb),.55); white-space: nowrap; }
+.dos-mark { color: var(--dos-cy); letter-spacing: .16em; font-size: 12px; text-shadow: var(--dos-text-shadow); white-space: nowrap; }
 .dos-mark b { font-weight: 600; }
 .dos-mark-sub { color: var(--dos-ink-faint); font-size: 9px; letter-spacing: .32em; text-transform: uppercase; white-space: nowrap; }
 .dos-rail-mid { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(var(--dos-rgb),.4), rgba(var(--dos-rgb),.08) 55%, transparent); position: relative; overflow: hidden; }
 .dos-rail-mid::after { content: ""; position: absolute; inset: 0; width: 22%; background: linear-gradient(90deg, transparent, var(--dos-cy), transparent); animation: dos-scan-x 7s linear infinite; opacity: .8; }
 .dos-rail-right { display: flex; align-items: center; gap: 12px; color: var(--dos-ink-dim); font-size: 10px; letter-spacing: .1em; white-space: nowrap; }
+.dos-rail-right [data-tone="hot"] { color: var(--dos-mag); }
+.dos-rail-stat b { color: var(--dos-ink); font-weight: 500; }
 .dos-clock { color: var(--dos-ink); font-size: 12px; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
 
 /* ── 窗格 ──────────────────────────────────────────────────────────── */
 .dos-panel {
   position: absolute; display: flex; flex-direction: column; gap: 2px;
   padding: 6px 8px 8px;
-  background:
-    linear-gradient(180deg, rgba(var(--dos-rgb),.05), transparent 22%),
-    linear-gradient(180deg, rgba(5,13,17,.93), rgba(3,8,11,.95));
+  background: var(--dos-panel-bg);
   border: 1px solid var(--dos-edge);
   clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
-  box-shadow: inset 0 0 26px rgba(0,0,0,.55), 0 0 22px rgba(0,0,0,.35);
+  box-shadow: var(--dos-panel-shadow);
   backdrop-filter: blur(6px) saturate(1.05);
   overflow: hidden;
   pointer-events: auto;
@@ -139,7 +136,7 @@ html.dsh-os-live [class*="_composerHero"]::before {
 .dos-head b { font-weight: 600; color: var(--dos-cy); }
 .dos-head .dos-head-meta { color: var(--dos-ink-faint); letter-spacing: .12em; }
 .dos-rule { height: 1px; margin: 1px 0; background: linear-gradient(90deg, rgba(var(--dos-rgb),.5), rgba(var(--dos-rgb),.12) 40%, transparent); }
-.dos-sub { color: var(--dos-ink-faint); font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; margin-top: 1px; line-height: 1.2; }
+.dos-sub { color: var(--dos-ink-faint); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; margin-top: 1px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .dos-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; line-height: 1.25; }
 .dos-k { color: var(--dos-ink-dim); font-size: 9px; letter-spacing: .18em; text-transform: uppercase; white-space: nowrap; }
@@ -151,17 +148,26 @@ html.dsh-os-live [class*="_composerHero"]::before {
 
 /* ASCII 计量条：字符即像素 */
 .dos-meter { font-size: 10px; line-height: 1; letter-spacing: .04em; white-space: pre; font-variant-numeric: tabular-nums; }
-.dos-meter .on { color: var(--dos-cy); text-shadow: 0 0 6px rgba(var(--dos-rgb),.5); }
-.dos-meter .off { color: rgba(var(--dos-rgb),.14); }
-.dos-meter[data-tone="warn"] .on { color: var(--dos-amber); text-shadow: 0 0 6px rgba(255,180,84,.45); }
-.dos-meter[data-tone="hot"] .on { color: var(--dos-mag); text-shadow: 0 0 6px rgba(255,110,169,.45); }
+.dos-meter .on { color: var(--dos-cy); text-shadow: var(--dos-text-shadow); }
+.dos-meter .off { color: rgba(var(--dos-rgb),.18); }
+.dos-meter[data-tone="warn"] .on { color: var(--dos-amber); }
+.dos-meter[data-tone="hot"] .on { color: var(--dos-mag); }
 .dos-meter[data-tone="ghost"] .on { color: var(--dos-ink-dim); text-shadow: none; }
 
-.dos-spark { display: block; width: 100%; height: 22px; overflow: visible; }
-.dos-spark polyline { fill: none; stroke: var(--dos-cy); stroke-width: 1.1; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px rgba(var(--dos-rgb),.55)); }
+/* 火花线：悬停可读出任一点的瞬时值 */
+.dos-spark-wrap { position: relative; display: block; }
+.dos-spark { display: block; width: 100%; height: 22px; overflow: visible; cursor: crosshair; }
+.dos-spark polyline { fill: none; stroke: var(--dos-cy); stroke-width: 1.1; vector-effect: non-scaling-stroke; filter: var(--dos-spark-glow); }
 .dos-spark polygon { fill: rgba(var(--dos-rgb),.1); stroke: none; }
-.dos-spark[data-tone="mag"] polyline { stroke: var(--dos-mag); filter: drop-shadow(0 0 3px rgba(255,110,169,.5)); }
+.dos-spark[data-tone="mag"] polyline { stroke: var(--dos-mag); }
 .dos-spark[data-tone="mag"] polygon { fill: rgba(255,110,169,.1); }
+.dos-spark-cursor { stroke: var(--dos-ink-faint); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 2 2; }
+.dos-spark-dot { fill: var(--dos-cy); }
+.dos-spark-tip {
+  position: absolute; right: 0; top: -3px; padding: 1px 5px; pointer-events: none;
+  font-size: 9px; letter-spacing: .06em; color: var(--dos-ink);
+  background: var(--dos-bar-bg); border: 1px solid var(--dos-edge);
+}
 
 .dos-cores { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 8px; }
 .dos-core { display: flex; align-items: center; gap: 4px; color: var(--dos-ink-faint); font-size: 9px; letter-spacing: .04em; line-height: 1.15; }
@@ -172,43 +178,47 @@ html.dsh-os-live [class*="_composerHero"]::before {
 .dos-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dos-spacer { flex: 1; }
 
+/* 分段选择器 */
+.dos-seg { display: inline-flex; border: 1px solid var(--dos-edge); }
+.dos-seg-item {
+  padding: 0 6px; height: 15px; display: inline-flex; align-items: center;
+  font: inherit; font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--dos-ink-dim); background: transparent; border: none; border-left: 1px solid var(--dos-edge);
+  cursor: pointer;
+}
+.dos-seg-item:first-child { border-left: none; }
+.dos-seg-item:hover { color: var(--dos-ink); background: rgba(var(--dos-rgb),.12); }
+.dos-seg-item[data-on="1"] { color: var(--dos-chip-on-ink); background: var(--dos-cy); }
+.dos-meta-row { display: inline-flex; align-items: center; gap: 8px; }
+.dos-scope { color: var(--dos-cy); border: 1px solid var(--dos-edge); padding: 0 4px; font-size: 8px; letter-spacing: .16em; }
+
 /* 会话列表 */
 .dos-session { display: flex; align-items: center; gap: 6px; padding: 1px 2px; min-width: 0; cursor: pointer; border-left: 1px solid transparent; }
-.dos-session:hover { background: rgba(var(--dos-rgb),.07); border-left-color: var(--dos-cy); }
+.dos-session:hover { background: rgba(var(--dos-rgb),.1); border-left-color: var(--dos-cy); }
 .dos-session .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dos-ink-dim); font-size: 10px; }
 .dos-session:hover .t { color: var(--dos-ink); }
-.dos-session .age { color: var(--dos-ink-faint); font-size: 8.5px; letter-spacing: .06em; }
-.dos-session .idx { color: var(--dos-cy-faint); font-size: 8.5px; }
-
-/* ── 控制台 ────────────────────────────────────────────────────────── */
-.dos-console { position: absolute; display: flex; flex-direction: column; gap: 2px; padding: 7px 10px 8px; background: linear-gradient(180deg, rgba(4,12,16,.86), rgba(3,8,11,.94)); border: 1px solid rgba(var(--dos-rgb),.18); backdrop-filter: blur(3px); pointer-events: auto; overflow: hidden; }
-.dos-console-line { display: flex; gap: 8px; font-size: 10px; line-height: 1.55; white-space: nowrap; color: rgba(190,233,225,.72); }
-.dos-console-line[data-fresh="1"] { color: var(--dos-ink); }
-.dos-console-line .ts { color: rgba(var(--dos-rgb),.4); flex: none; }
-.dos-console-line .tag { flex: none; width: 52px; color: var(--dos-cy-dim); letter-spacing: .08em; text-transform: uppercase; font-size: 9px; }
-.dos-console-line[data-tone="mag"] .tag { color: var(--dos-mag); }
-.dos-console-line[data-tone="warn"] .tag { color: var(--dos-amber); }
-.dos-console-line .msg { overflow: hidden; text-overflow: ellipsis; }
-.dos-prompt { display: flex; gap: 6px; align-items: center; color: var(--dos-cy); font-size: 10px; letter-spacing: .04em; margin-top: 1px; }
-.dos-prompt .path { color: var(--dos-ink-faint); }
+.dos-session .m { color: var(--dos-cy-dim); font-size: 8.5px; letter-spacing: .04em; max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dos-session .tok, .dos-session .age { color: var(--dos-ink-faint); font-size: 8.5px; letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.dos-session .tok { min-width: 34px; text-align: right; }
+.dos-session .age { min-width: 24px; text-align: right; }
 
 /* ── 任务栏 ────────────────────────────────────────────────────────── */
-.dos-taskbar { position: absolute; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: linear-gradient(180deg, rgba(4,11,14,.72), rgba(3,8,11,.94)); border-top: 1px solid rgba(var(--dos-rgb),.2); backdrop-filter: blur(4px); pointer-events: auto; font-size: 9px; letter-spacing: .16em; color: var(--dos-ink-faint); text-transform: uppercase; }
+.dos-taskbar { position: absolute; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px; overflow: hidden; background: linear-gradient(180deg, var(--dos-scrim-b), var(--dos-scrim-a)); border-top: 1px solid rgba(var(--dos-rgb),.2); backdrop-filter: blur(4px); pointer-events: auto; font-size: 9px; letter-spacing: .16em; color: var(--dos-ink-faint); text-transform: uppercase; }
 .dos-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid rgba(var(--dos-rgb),.2); background: transparent; color: var(--dos-ink-dim); font: inherit; font-size: 8.5px; letter-spacing: .18em; cursor: pointer; text-transform: uppercase; }
 .dos-chip:hover { color: var(--dos-ink); border-color: var(--dos-cy); }
-.dos-chip[data-on="1"] { color: #041014; background: var(--dos-cy); border-color: var(--dos-cy); box-shadow: 0 0 12px rgba(var(--dos-rgb),.35); }
+.dos-chip[data-on="1"] { color: var(--dos-chip-on-ink); background: var(--dos-cy); border-color: var(--dos-cy); box-shadow: var(--dos-led-shadow); }
 .dos-chip[data-dim="1"] { opacity: .55; }
-.dos-ticker { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: rgba(160,210,204,.55); letter-spacing: .1em; text-transform: none; font-size: 9.5px; }
+.dos-ticker { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--dos-ink-faint); letter-spacing: .1em; text-transform: none; font-size: 9.5px; }
 .dos-keys { display: flex; gap: 8px; color: var(--dos-ink-faint); font-size: 8.5px; }
 .dos-keys kbd { font: inherit; color: var(--dos-ink-dim); border: 1px solid rgba(var(--dos-rgb),.22); padding: 0 3px; }
 
 /* ── 开机自检 ──────────────────────────────────────────────────────── */
-.dos-boot { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 5vh 5vw; background: radial-gradient(120% 100% at 50% 45%, #071319 0%, #020508 72%); color: var(--dos-ink); pointer-events: auto; cursor: pointer; font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK SC", monospace; }
-.dos-boot::before { content: ""; position: absolute; inset: 0; background-image: repeating-linear-gradient(180deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px); pointer-events: none; }
+.dos-boot { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 5vh 5vw; background: var(--dos-boot-bg); color: var(--dos-ink); pointer-events: auto; cursor: pointer; font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK SC", monospace; text-shadow: var(--dos-text-shadow); }
+.dos-boot::before { content: ""; position: absolute; inset: 0; background-image: repeating-linear-gradient(180deg, var(--dos-scan) 0 1px, transparent 1px 3px); pointer-events: none; }
 .dos-boot-inner { position: relative; width: min(920px, 100%); display: flex; flex-direction: column; gap: 13px; }
 .dos-boot[data-leaving="1"] { animation: dos-boot-out .7s ease forwards; }
 @keyframes dos-boot-out { 0% { opacity: 1; clip-path: inset(0 0 0 0); } 55% { opacity: 1; clip-path: inset(48% 0 48% 0); } 100% { opacity: 0; clip-path: inset(50% 0 50% 0); } }
-.dos-boot-banner { margin: 0; color: #7dffe9; font-size: clamp(7px, 1.9vw, 26px); line-height: 1.08; letter-spacing: .01em; text-shadow: 0 0 18px rgba(var(--dos-rgb),.45), 2px 0 rgba(255,110,169,.35), -2px 0 rgba(var(--dos-rgb),.35); white-space: pre; animation: dos-flicker 7s linear infinite; }
+.dos-boot-banner { margin: 0; color: var(--dos-cy); font-size: clamp(7px, 1.9vw, 26px); line-height: 1.08; letter-spacing: .01em; white-space: pre; animation: dos-flicker 7s linear infinite; }
 .dos-boot-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--dos-ink-dim); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; }
 .dos-boot-meta b { color: var(--dos-cy); font-weight: 500; }
 .dos-boot-log { display: flex; flex-direction: column; gap: 1px; font-size: 11px; line-height: 1.7; }
@@ -231,156 +241,53 @@ html.dsh-os-live [class*="_composerHero"] [class*="_stack"] {
   gap: 0 !important;
 }
 
-/* ── 原生皮肤：侧边栏（全终端机能风） ─────────────────────────────── */
-html.dsh-os-live.dsh-os-skin-sidebar,
-html.dsh-os-live.dsh-os-skin-sidebar body {
-  --dsw-specific-sidebar-fill: #04080f !important;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sidebarCol"],
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sidebarCol"] [class*="_root"] {
-  background:
-    radial-gradient(120% 45% at 0% 0%, rgba(var(--dos-rgb), .10), transparent 62%),
-    linear-gradient(180deg, #050b13 0%, #040810 52%, #03060b 100%) !important;
-  border-right: 1px solid rgba(var(--dos-rgb), .22) !important;
-  box-shadow: inset -1px 0 0 rgba(var(--dos-rgb), .14), inset -24px 0 46px -46px var(--dos-cy) !important;
-  color: var(--dos-ink-dim) !important;
-  font-family: var(--ds-font-family-code, ui-monospace, monospace) !important;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sidebarCol"] {
-  position: relative;
-  isolation: isolate;
-}
-/* 扫描线 + 左侧刻度导轨 */
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sidebarCol"]::after {
-  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .24) 0 1px, transparent 1px 3px);
-  opacity: .5;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sidebarCol"]::before {
-  content: ''; position: absolute; left: 4px; top: 70px; bottom: 10px; width: 1px; z-index: 4; pointer-events: none;
-  background: repeating-linear-gradient(180deg, rgba(var(--dos-rgb), .42) 0 1px, transparent 1px 10px);
-  opacity: .7;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_brandIdentity"] {
-  padding-bottom: 8px;
-  border-bottom: 1px dashed rgba(var(--dos-rgb), .2);
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_brandName"] {
-  letter-spacing: .2em !important;
-  text-transform: uppercase !important;
-  color: var(--dos-cy) !important;
-  text-shadow: 0 0 10px rgba(var(--dos-rgb), .5);
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_newSession"] {
-  background: rgba(var(--dos-rgb), .07) !important;
-  border: 1px solid rgba(var(--dos-rgb), .38) !important;
-  border-radius: 1px !important;
-  color: var(--dos-cy) !important;
-  letter-spacing: .14em !important;
-  text-transform: uppercase !important;
-  font-size: 11px !important;
-  box-shadow: inset 0 0 14px -8px var(--dos-cy);
-  transition: all .18s ease;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_newSession"]:hover {
-  background: var(--dos-cy) !important;
-  color: #030810 !important;
-  box-shadow: 0 0 22px -4px var(--dos-cy) !important;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sectionHeader"] {
-  border-bottom: 1px solid rgba(var(--dos-rgb), .14);
-  padding: 8px 4px 4px;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sectionLabel"] {
-  font-size: 9px !important;
-  letter-spacing: .24em !important;
-  text-transform: uppercase !important;
-  color: var(--dos-cy) !important;
-  opacity: .8;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_sectionLabel"]::before {
-  content: '> '; color: rgba(var(--dos-rgb), .55);
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_panelRow"],
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_projectRow"] {
-  border-radius: 1px;
-  border-left: 2px solid transparent;
-  color: var(--dos-ink-dim) !important;
-  font-size: 12px !important;
-  letter-spacing: .02em;
-  transition: all .15s ease;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_panelRow"]:hover,
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_projectRow"]:hover {
-  background: rgba(var(--dos-rgb), .1) !important;
-  border-left-color: var(--dos-cy) !important;
-  color: var(--dos-ink) !important;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_searchInput"] {
-  background: rgba(2, 6, 10, .85) !important;
-  border: 1px solid rgba(var(--dos-rgb), .26) !important;
-  border-radius: 1px !important;
-  color: var(--dos-ink) !important;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_iconButton"]:hover {
-  color: var(--dos-cy) !important;
-}
-html.dsh-os-live.dsh-os-skin-sidebar [class*="_treeBody"] {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--dos-rgb), .45) transparent;
-}
-
 /* ── 原生皮肤：输入框 ──────────────────────────────────────────────── */
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerHero"] [class*="_card"],
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_card"] {
-  background: linear-gradient(180deg, rgba(6, 12, 19, .96), rgba(3, 7, 12, .98)) !important;
-  border: 1px solid rgba(var(--dos-rgb), .35) !important;
+  background: var(--dos-panel-bg) !important;
+  border: 1px solid var(--dos-edge) !important;
   border-radius: 2px !important;
-  box-shadow:
-    0 24px 60px -30px rgba(0, 0, 0, .8),
-    0 0 24px -8px var(--dos-cy),
-    inset 0 0 24px -16px var(--dos-cy),
-    inset 0 1px 0 rgba(var(--dos-rgb), .25) !important;
+  box-shadow: var(--dos-panel-shadow) !important;
 }
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerHero"] [class*="_placeholder"],
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_placeholder"] {
-  color: rgba(var(--dos-rgb), .48) !important;
+  color: var(--dos-ink-faint) !important;
   letter-spacing: .03em;
   font-family: var(--ds-font-family-code, monospace) !important;
 }
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerHero"] [class*="_tools"],
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_tools"] {
-  border-top: 1px solid rgba(var(--dos-rgb), .15) !important;
+  border-top: 1px solid var(--dos-panel-line) !important;
 }
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerHero"] [class*="_primary"],
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_primary"] {
   background: var(--dos-cy) !important;
-  color: #030810 !important;
-  box-shadow: 0 0 16px -2px var(--dos-cy);
+  color: var(--dos-chip-on-ink) !important;
 }
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerHero"] [class*="_add"],
 html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_add"] {
-  border-color: rgba(var(--dos-rgb), .32) !important;
-  color: rgba(var(--dos-rgb), .85) !important;
+  border-color: var(--dos-edge) !important;
+  color: var(--dos-cy) !important;
 }
 
-/* ── Token 账本 ───────────────────────────────────────────────────── */
+/* ── 模型账本 ─────────────────────────────────────────────────────── */
 .dos-ledger { display: flex; flex-direction: column; gap: 1px; }
 .dos-ledger-head, .dos-ledger-row, .dos-ledger-total {
-  display: grid; grid-template-columns: 1fr 62px 64px 64px 52px 42px; gap: 8px;
-  align-items: baseline; font-size: 10px; line-height: 1.5;
+  display: grid; grid-template-columns: minmax(0,1fr) 42px 72px 72px 46px 40px 66px; gap: 8px;
+  align-items: baseline; font-size: 10px; line-height: 1.55;
 }
-.dos-ledger-head { color: rgba(var(--dos-rgb), .55); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; }
-.dos-ledger-row { color: var(--dos-ink-dim); border-left: 1px solid transparent; padding-left: 4px; cursor: pointer; }
-.dos-ledger-row:hover { color: var(--dos-ink); background: rgba(var(--dos-rgb), .08); border-left-color: var(--dos-cy); }
+.dos-ledger-head { color: rgba(var(--dos-rgb),.6); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; }
+.dos-ledger-row { color: var(--dos-ink-dim); border-left: 1px solid transparent; padding-left: 4px; }
+.dos-ledger-row[data-clickable] { cursor: pointer; }
+.dos-ledger-row:hover { color: var(--dos-ink); background: rgba(var(--dos-rgb),.1); border-left-color: var(--dos-cy); }
 .dos-ledger-row .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dos-ledger-row .n, .dos-ledger-total .n { text-align: right; font-variant-numeric: tabular-nums; }
-.dos-ledger-row .p { color: var(--dos-ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dos-ledger-total { border-top: 1px solid rgba(var(--dos-rgb), .18); padding-top: 2px; color: var(--dos-cy); }
+.dos-ledger-row .n .dos-meter { font-size: 9px; letter-spacing: 0; }
+.dos-ledger-total { border-top: 1px solid rgba(var(--dos-rgb),.18); padding-top: 2px; color: var(--dos-cy); }
 .dos-ledger-empty { color: var(--dos-ink-faint); font-size: 10px; padding: 6px 0; }
 
 /* ── 窄屏 ──────────────────────────────────────────────────────────── */
-.dos-compact { position: absolute; display: flex; align-items: center; gap: 10px; padding: 4px 8px; background: rgba(4,12,16,.9); border: 1px solid rgba(var(--dos-rgb),.2); clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); font-size: 9px; letter-spacing: .12em; color: var(--dos-ink-dim); overflow: hidden; white-space: nowrap; }
+.dos-compact { position: absolute; display: flex; align-items: center; gap: 10px; padding: 4px 8px; background: var(--dos-bar-bg); border: 1px solid rgba(var(--dos-rgb),.2); clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); font-size: 9px; letter-spacing: .12em; color: var(--dos-ink-dim); overflow: hidden; white-space: nowrap; }
 .dos-compact b { color: var(--dos-cy); font-weight: 500; }
 .dos-compact .sep { color: var(--dos-cy-faint); }
 
@@ -421,6 +328,14 @@ html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_add"] 
   background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .18s ease;
 }
 .dso-switch[data-on="true"] .dso-knob { transform: translateX(18px); background: #fff; }
+.dso-seg { display: inline-flex; flex: none; border: .5px solid var(--dsw-alias-border-l3, #ccc); border-radius: 8px; overflow: hidden; }
+.dso-seg-item {
+  padding: 5px 11px; font: inherit; font-size: 12px; cursor: pointer; border: none; border-left: .5px solid var(--dsw-alias-border-l3, #ccc);
+  background: transparent; color: var(--dsw-alias-label-secondary, #666);
+}
+.dso-seg-item:first-child { border-left: none; }
+.dso-seg-item:hover { color: var(--dsw-alias-label-primary, #111); }
+.dso-seg-item[data-on="true"] { background: var(--dos-cy, #4d6bfe); color: #fff; }
 .dso-patterns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .dso-pattern {
   display: flex; flex-direction: column; gap: 4px; padding: 10px; cursor: pointer; text-align: left;

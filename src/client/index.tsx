@@ -1,10 +1,11 @@
 /**
  * 浏览器半边。
  *
- * 三件事：
+ * 四件事：
  *   1. 判定"首页"——主视图没有会话，或持有的会话还是空白会话；
  *   2. 把字符场挂到 body 底下、把 frame 底色打透，让首页变成一块桌面；
- *   3. 在 `shell.overlay` 注册 HUD、在 `settings.section` 注册设置页。
+ *   3. 跟随宿主主题切换深浅墨色；
+ *   4. 在 `shell.overlay` 注册 HUD、在 `settings.section` 注册设置页。
  *
  * 组件不直接依赖任何 dsh 客户端包，只用结构化的 ctx，避免 link 安装时的
  * 模块解析问题。
@@ -14,33 +15,22 @@
 
 import * as React from 'react'
 import { createGlyphField, type FieldHandle } from './field/engine'
+import { emptyHarness, fetchHarness } from './harness'
 import { Boot } from './os/Boot'
 import { Desktop, type DesktopActions } from './os/Desktop'
 import { OsSettingsPanel } from './os/settings-panel'
 import { inkPalette, paletteFor, paletteVars, SettingsStore, type Settings } from './settings'
 import { CSS, STYLE_ID } from './styles'
-import { basename } from './format'
-import type { Geometry, HarnessSession, HarnessSnapshot, LedgerRow, LogLine, MetricsPayload } from './types'
+import { HostTheme, resolveTone } from './theme'
+import type { Geometry, HarnessPayload, LedgerWindow, LogLine, MetricsPayload } from './types'
 
 const name = 'dsh-os'
-const inject = ['slots', 'sessions', 'uiWorkspace']
+const inject = ['slots', 'sessions', 'uiWorkspace', 'theme']
 
 const BOOT_KEY = 'dsh-os:booted'
-const ENDPOINT = '/plugins/dsh-os/metrics'
-const POLL_MS = 2000
-
-const EMPTY_HARNESS: HarnessSnapshot = {
-	total: 0,
-	running: 0,
-	blank: 0,
-	workspaces: 0,
-	workspace: '—',
-	recent: [],
-	context: null,
-	model: 'default',
-	ledger: [],
-	totals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-}
+const METRICS_ENDPOINT = '/plugins/dsh-os/metrics'
+const METRICS_MS = 2000
+const HARNESS_MS = 5000
 
 /** 会话列表服务的结构（只取用到的部分）。 */
 interface SessionsSource {
@@ -61,13 +51,16 @@ interface ClientContext {
 	}
 	sessions: SessionsSource
 	uiWorkspace: { openSession: (id: string) => void }
-	effect?: (dispose: () => () => void, label?: string) => () => void
+	theme?: { getTheme: () => { preference: string; active: { colorScheme: 'light' | 'dark' } }; setTheme: (id: string) => void }
+	on?: (event: string, listener: (snapshot: any) => void) => unknown
+	effect?: (dispose: () => (() => void) | void, label?: string) => () => void
 }
 
 interface Runtime {
 	ctx: ClientContext
 	session: Session
 	settings: SettingsStore
+	theme: HostTheme
 }
 
 /** 主视图当前持有的会话。 */
@@ -89,96 +82,18 @@ function isHome(snapshot: { ids: string[]; byId: Record<string, any> }): boolean
 	return snapshot.byId[id]?.blank === true
 }
 
-function deriveHarness(snapshot: {
-	ids: string[]
-	byId: Record<string, any>
-	projectionsBySession?: Record<string, { values?: any } | undefined>
-}): HarnessSnapshot {
-	const rows = snapshot.ids.map((id) => snapshot.byId[id]).filter((row): row is any => Boolean(row))
-	if (rows.length === 0) return { ...EMPTY_HARNESS }
-	const running = rows.filter((row) => row.running).length
-	const blank = rows.filter((row) => row.blank).length
-	const cwds = rows.map((row) => row.cwd).filter((value): value is string => Boolean(value))
-	const recent: HarnessSession[] = rows
-		.filter((row) => !row.blank && row.origin !== 'subagent')
-		.sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))
-		.slice(0, 5)
-		.map((row) => ({
-			id: row.id,
-			title: row.title ?? row.displayTitle ?? row.id,
-			running: Boolean(row.running),
-			updatedAt: row.updatedAt ?? Date.now(),
-			blank: Boolean(row.blank),
-			workspace: row.cwd ?? '',
-		}))
-
-	// Token 账本：按会话聚合（投影里没有逐模型的归因，见 README）。
-	const projections = (id: string): any =>
-		snapshot.projectionsBySession?.[id]?.values ?? snapshot.byId[id]?.projectionValues ?? {}
-	const ledger: LedgerRow[] = []
-	let totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
-	for (const row of rows) {
-		if (row.origin === 'subagent') continue
-		const values = projections(row.id)
-		const usage = values.tokenUsage?.totals ?? {}
-		const stats = values.sessionStats ?? {}
-		const input = usage.uncachedInputTokens ?? 0
-		const output = usage.outputTokens ?? 0
-		const cacheRead = usage.cacheReadTokens ?? 0
-		const cacheWrite = usage.cacheWriteTokens ?? 0
-		if (input + output + cacheRead === 0) continue
-		totals = {
-			input: totals.input + input,
-			output: totals.output + output,
-			cacheRead: totals.cacheRead + cacheRead,
-			cacheWrite: totals.cacheWrite + cacheWrite,
-		}
-		ledger.push({
-			id: row.id,
-			title: row.title ?? row.displayTitle ?? row.id,
-			preset: typeof values.agentPreset === 'string' && values.agentPreset ? values.agentPreset : 'default',
-			input,
-			output,
-			cacheRead,
-			cacheRatio: input + cacheRead > 0 ? cacheRead / (input + cacheRead) : 0,
-			tps: stats.decodeMs > 0 ? stats.decodeTokens / (stats.decodeMs / 1000) : null,
-		})
-	}
-	ledger.sort((left, right) => right.input + right.output - (left.input + left.output))
-
-	const activeId = currentSessionId(snapshot)
-	const target =
-		(activeId ? snapshot.byId[activeId] : null) ??
-		rows.slice().sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]
-	const values = target ? projections(target.id) : {}
-	const usage = values.tokenUsage as { totals?: Record<string, number> } | undefined
-	const pressure = values.contextPressure as
-		| { pressureTokens?: number; projectedTokens?: number; contextWindow?: number }
-		| undefined
-	const workspace = activeId ? snapshot.byId[activeId]?.cwd : recent[0]?.workspace
-	return {
-		total: rows.length,
-		running,
-		blank,
-		workspaces: new Set(cwds).size,
-		workspace: basename(workspace),
-		recent,
-		ledger: ledger.slice(0, 6),
-		totals,
-		model: typeof values.agentPreset === 'string' && values.agentPreset ? values.agentPreset : 'default',
-		context: target
-			? {
-					sessionTitle: target.title ?? target.displayTitle ?? target.id,
-					pressure: pressure?.pressureTokens ?? null,
-					projected: pressure?.projectedTokens ?? null,
-					window: pressure?.contextWindow ?? null,
-					input: usage?.totals?.uncachedInputTokens ?? 0,
-					output: usage?.totals?.outputTokens ?? 0,
-					cacheRead: usage?.totals?.cacheReadTokens ?? 0,
-					cacheWrite: usage?.totals?.cacheWriteTokens ?? 0,
-				}
-			: null,
-	}
+/**
+ * 当前工作区：主视图持有的会话优先，其次是 hero 正在准备的空白会话，
+ * 最后退回最近动过的工作区。桌面上的账本口径、"最近会话"都跟着它走。
+ */
+function currentWorkspace(snapshot: { ids: string[]; byId: Record<string, any> }): string {
+	const rows = snapshot.ids.map((id) => snapshot.byId[id]).filter((row): row is any => Boolean(row?.cwd))
+	if (rows.length === 0) return ''
+	const retained = rows.find((row) => (row.retainedBy?.mainView ?? 0) > 0)
+	if (retained) return retained.cwd as string
+	const blanks = rows.filter((row) => row.blank)
+	const pool = blanks.length > 0 ? blanks : rows
+	return pool.slice().sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]?.cwd ?? ''
 }
 
 /** 量几何：中央列与 hero 在视口里的位置。找不到就给一个保守的整窗。 */
@@ -245,10 +160,10 @@ function logLine(tag: string, msg: string, tone?: 'mag' | 'warn'): LogLine {
 	return { at: Date.now(), tag, msg, tone }
 }
 
-/** 由真实变化生成控制台日志（节流，避免刷屏）。 */
+/** 由真实变化生成任务栏滚动条（节流，避免刷屏）。 */
 function makeLogger() {
 	let last = 0
-	let lines: LogLine[] = [logLine('dsh-os', '1.0.0 · glyph field linked'), logLine('telemetry', `${ENDPOINT} online`)]
+	let lines: LogLine[] = [logLine('dsh-os', '2.0 · session index linked'), logLine('telemetry', `${METRICS_ENDPOINT} online`)]
 	return {
 		get lines(): LogLine[] {
 			return lines
@@ -272,30 +187,27 @@ function openHostSettings(): void {
 	if (target instanceof HTMLElement) target.click()
 }
 
-/** 一次生命周期内共享的运行时：DOM 层、字段引擎、偏好。 */
+/** 一次生命周期内共享的运行时：DOM 层、字段引擎、偏好、宿主主题。 */
 class Session {
 	readonly ctx: ClientContext
 	readonly settings: SettingsStore
+	readonly theme: HostTheme
 	layer: HTMLDivElement | null = null
 	field: FieldHandle | null = null
-	darkAdded = false
 	active = false
 
-	constructor(ctx: ClientContext, settings: SettingsStore) {
+	constructor(ctx: ClientContext, settings: SettingsStore, theme: HostTheme) {
 		this.ctx = ctx
 		this.settings = settings
+		this.theme = theme
 	}
 
-	/** 进入"桌面"：打透 frame、上深色盘、挂字符场、上皮肤。 */
+	/** 进入"桌面"：打透 frame、上墨色、挂字符场、上皮肤。 */
 	activate(): void {
 		if (this.active) return
 		this.active = true
 		document.documentElement.classList.add('dsh-os-live')
 		clearPaintLayers(true)
-		if (!document.body.hasAttribute('data-ds-dark-theme')) {
-			document.body.setAttribute('data-ds-dark-theme', '')
-			this.darkAdded = true
-		}
 		this.applyTheme()
 		this.syncField()
 	}
@@ -305,26 +217,25 @@ class Session {
 		this.active = false
 		document.documentElement.classList.remove('dsh-os-live')
 		this.applyTheme()
-		if (this.darkAdded) {
-			document.body.removeAttribute('data-ds-dark-theme')
-			this.darkAdded = false
-		}
 		this.unmountField()
 		clearPaintLayers(false)
 	}
 
-	/** 主题色写进 CSS 变量；字符场同步换图集。 */
+	/** 明暗与主色写进 CSS 变量；字符场同步换图集与底纸。 */
 	applyTheme(): void {
 		const root = document.documentElement
 		const settings = this.settings.value
-		const palette = paletteFor(settings)
+		const tone = resolveTone(settings.tone, this.theme.tone)
+		const palette = paletteFor(settings, tone)
+		root.dataset.dosTone = tone
 		if (this.active) {
 			for (const [property, value] of Object.entries(paletteVars(palette))) root.style.setProperty(property, value)
 		} else {
 			for (const property of Object.keys(paletteVars(palette))) root.style.removeProperty(property)
+			root.removeAttribute('data-dos-tone')
 		}
-		root.classList.toggle('dsh-os-skin-sidebar', this.active && settings.skinSidebar)
 		root.classList.toggle('dsh-os-skin-composer', this.active && settings.skinComposer)
+		this.field?.setSurface(tone)
 		this.field?.setPalette(inkPalette(palette), palette.key)
 	}
 
@@ -332,13 +243,8 @@ class Session {
 	syncField(): void {
 		if (!this.active) return
 		const pattern = this.settings.value.pattern
-		if (pattern === 'off') {
-			this.unmountField()
-			return
-		}
-		if (this.field) {
-			this.unmountField()
-		}
+		if (this.field) this.unmountField()
+		if (pattern === 'off') return
 		this.mountField(pattern)
 	}
 
@@ -351,7 +257,11 @@ class Session {
 		document.body.appendChild(layer)
 		this.layer = layer
 		this.field = createGlyphField(canvas, { pattern, reduced: prefersReducedMotion() })
-		this.field.setPalette(inkPalette(paletteFor(this.settings.value)), paletteFor(this.settings.value).key)
+		const settings = this.settings.value
+		const tone = resolveTone(settings.tone, this.theme.tone)
+		const palette = paletteFor(settings, tone)
+		this.field.setSurface(tone)
+		this.field.setPalette(inkPalette(palette), palette.key)
 		const geometry = measure()
 		this.field.setClearRect(heroClearRect(geometry))
 		this.field.setStage(stageRect(geometry))
@@ -372,37 +282,44 @@ class Session {
 
 /** HUD 组件：所有状态都在这里，插槽只负责把 DOM 送进渲染树。 */
 function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
-	const { session, settings: settingsStore } = runtime
+	const { session, settings: settingsStore, theme: hostTheme } = runtime
 	const settings = React.useSyncExternalStore(settingsStore.subscribe, () => settingsStore.value)
+	// 宿主主题变化也要重渲：桌面明暗由它决定。
+	React.useSyncExternalStore(hostTheme.subscribe, () => hostTheme.tone)
 	const [metrics, setMetrics] = React.useState<MetricsPayload | null>(null)
-	const [harness, setHarness] = React.useState<HarnessSnapshot>(EMPTY_HARNESS)
+	const [harness, setHarness] = React.useState<HarnessPayload>(() => emptyHarness())
 	const [geometry, setGeometry] = React.useState<Geometry>(() => measure())
 	const [now, setNow] = React.useState(() => Date.now())
 	const [fps, setFps] = React.useState(0)
+	const [ledgerWindow, setLedgerWindow] = React.useState<LedgerWindow>('all')
 	const [home, setHome] = React.useState(() => isHome(session.ctx.sessions.list.getSnapshot()))
+	const [workspace, setWorkspace] = React.useState(() => currentWorkspace(session.ctx.sessions.list.getSnapshot()))
 	const [booting, setBooting] = React.useState(false)
 	const [, forceLog] = React.useState(0)
 	const logger = React.useRef(makeLogger())
-	const previous = React.useRef<{ cpu: number; mem: number; net: number; runningIds: Set<string>; total: number }>({
+	const previous = React.useRef<{ cpu: number; mem: number; net: number; runningIds: Set<string>; sessions: number }>({
 		cpu: 0,
 		mem: 0,
 		net: 0,
 		runningIds: new Set(),
-		total: 0,
+		sessions: 0,
 	})
+	const live = home && settings.enabled
+	const liveRef = React.useRef(live)
+	liveRef.current = live
 
-	// 指标轮询：页面隐藏时停表。
+	// 整机指标轮询：页面隐藏或不在首页时停表。
 	React.useEffect(() => {
 		let alive = true
 		let timer = 0
 		const tick = async (): Promise<void> => {
 			if (!alive) return
-			if (document.hidden) {
-				timer = window.setTimeout(tick, POLL_MS)
+			if (document.hidden || !liveRef.current) {
+				timer = window.setTimeout(tick, METRICS_MS)
 				return
 			}
 			try {
-				const response = await fetch(ENDPOINT, { cache: 'no-store', credentials: 'same-origin' })
+				const response = await fetch(METRICS_ENDPOINT, { cache: 'no-store', credentials: 'same-origin' })
 				if (response.ok) {
 					const payload = (await response.json()) as MetricsPayload
 					if (alive) setMetrics(payload)
@@ -410,7 +327,7 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 			} catch {
 				/* 宿主端点暂不可用时保持上一帧 */
 			}
-			timer = window.setTimeout(tick, POLL_MS)
+			timer = window.setTimeout(tick, METRICS_MS)
 		}
 		void tick()
 		return () => {
@@ -419,13 +336,38 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 		}
 	}, [])
 
-	// 会话快照订阅。
+	// 会话账本轮询：口径随当前工作区变化。
+	React.useEffect(() => {
+		let alive = true
+		let timer = 0
+		const tick = async (): Promise<void> => {
+			if (!alive) return
+			if (!liveRef.current) {
+				timer = window.setTimeout(tick, HARNESS_MS)
+				return
+			}
+			try {
+				const payload = await fetchHarness(workspace)
+				if (alive && payload) setHarness(payload)
+			} catch {
+				/* 同上：端点不可用就保持上一帧 */
+			}
+			timer = window.setTimeout(tick, HARNESS_MS)
+		}
+		void tick()
+		return () => {
+			alive = false
+			window.clearTimeout(timer)
+		}
+	}, [workspace])
+
+	// 会话快照订阅：首页判据与当前工作区都从这里来。
 	React.useEffect(() => {
 		const source = session.ctx.sessions.list
 		const update = (): void => {
 			const snapshot = source.getSnapshot()
-			setHarness(deriveHarness(snapshot))
 			setHome(isHome(snapshot))
+			setWorkspace(currentWorkspace(snapshot))
 		}
 		update()
 		return source.subscribe(update)
@@ -455,22 +397,22 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 
 	// 激活 / 关闭：桌面层跟随首页状态与设置。
 	React.useEffect(() => {
-		if (home && settings.enabled) session.activate()
+		if (live) session.activate()
 		else session.deactivate()
 		session.applyTheme()
-	}, [home, settings.enabled, settings.skinSidebar, settings.skinComposer, settings.accent, settings.custom, session])
+	}, [live, settings.enabled, settings.accent, settings.custom, settings.tone, settings.skinComposer, session, hostTheme.tone])
 
 	// 图案切换：重建字符场。
 	React.useEffect(() => {
 		session.syncField()
-	}, [settings.pattern, home, settings.enabled, session])
+	}, [settings.pattern, live, session])
 
 	// 首屏开机自检。
 	React.useEffect(() => {
-		if (!home || !settings.enabled || !settings.boot) return
+		if (!live || !settings.boot) return
 		if (window.sessionStorage.getItem(BOOT_KEY) === '1') return
 		setBooting(true)
-	}, [home, settings.enabled, settings.boot])
+	}, [live, settings.boot])
 
 	// 字符场信号 + 让位区。
 	React.useEffect(() => {
@@ -481,18 +423,18 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 			rx: metrics?.net.rxBps ?? 0,
 			tx: metrics?.net.txBps ?? 0,
 			load: metrics?.load[0] ?? 0,
-			running: harness.running,
+			running: harness.all.running,
 		})
 		session.field.setClearRect(heroClearRect(geometry))
 		session.field.setStage(stageRect(geometry))
-	}, [metrics, harness.running, geometry, settings.pattern, home])
+	}, [metrics, harness.all.running, geometry, settings.pattern, live])
 
 	React.useEffect(() => {
 		const timer = window.setInterval(() => setFps(session.field?.fps() ?? 0), 1000)
 		return () => window.clearInterval(timer)
-	}, [session, settings.pattern, home])
+	}, [session, settings.pattern, live])
 
-	// 真实变化 → 控制台日志。
+	// 真实变化 → 滚动事件。
 	React.useEffect(() => {
 		if (!metrics) return
 		const before = previous.current
@@ -508,22 +450,20 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 
 	React.useEffect(() => {
 		const before = previous.current
-		const runningIds = new Set(harness.recent.filter((row) => row.running).map((row) => row.id))
-		const started = [...runningIds].filter((id) => !before.runningIds.has(id))
-		const stopped = [...before.runningIds].filter((id) => !runningIds.has(id))
+		const runningIds = new Set(harness.running.map((row) => row.id))
 		let dirty = false
-		for (const id of started) {
-			const title = harness.recent.find((row) => row.id === id)?.title ?? id.slice(0, 8)
-			dirty = logger.current.push('agent', `running · ${title}`, 'mag') || dirty
+		for (const row of harness.running) {
+			if (before.runningIds.has(row.id)) continue
+			dirty = logger.current.push('agent', `running · ${row.title}`, 'mag') || dirty
 		}
-		for (const id of stopped) {
-			const title = harness.recent.find((row) => row.id === id)?.title ?? id.slice(0, 8)
-			dirty = logger.current.push('agent', `idle · ${title}`) || dirty
+		for (const id of before.runningIds) {
+			if (runningIds.has(id)) continue
+			dirty = logger.current.push('agent', `idle · ${id.slice(0, 8)}`) || dirty
 		}
-		if (harness.total !== before.total) {
-			dirty = logger.current.push('session', `catalogue ${before.total} → ${harness.total}`) || dirty
+		if (harness.all.sessions !== before.sessions) {
+			dirty = logger.current.push('index', `catalogue ${before.sessions} → ${harness.all.sessions}`) || dirty
 		}
-		previous.current = { ...before, runningIds, total: harness.total }
+		previous.current = { ...before, runningIds, sessions: harness.all.sessions }
 		if (dirty) forceLog((value) => value + 1)
 	}, [harness])
 
@@ -534,8 +474,13 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 			window.sessionStorage.setItem(BOOT_KEY, '1')
 			setBooting(true)
 		},
-		hide: () => settingsStore.set({ enabled: false }),
 		openSettings: () => openHostSettings(),
+		setScope: (scope) => settingsStore.set({ scope }),
+		setTone: (tone) => {
+			settingsStore.set({ tone })
+			hostTheme.set(tone)
+		},
+		setWindow: setLedgerWindow,
 	}
 
 	const finishBoot = (): void => {
@@ -553,10 +498,11 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 				geometry={geometry}
 				now={now}
 				fps={fps}
-				active={home && settings.enabled}
+				window={ledgerWindow}
+				active={live}
 				actions={actions}
 			/>
-			{booting && home && <Boot metrics={metrics} harness={harness} onDone={finishBoot} />}
+			{booting && live && <Boot metrics={metrics} harness={harness} onDone={finishBoot} />}
 		</>
 	)
 }
@@ -591,9 +537,10 @@ export function apply(ctx: ClientContext): void {
 
 	const disposeStyles = installStyles()
 	const settings = new SettingsStore()
-	const session = new Session(ctx, settings)
+	const theme = new HostTheme(ctx)
+	const session = new Session(ctx, settings, theme)
 	const disposeShortcuts = installShortcuts(session)
-	const runtime: Runtime = { ctx, session, settings }
+	const runtime: Runtime = { ctx, session, settings, theme }
 
 	const disposeHud = ctx.slots.inject('shell.overlay', () =>
 		ctx.slots.register(
@@ -634,15 +581,18 @@ export function apply(ctx: ClientContext): void {
 		disposeSettings()
 		disposeStyles()
 		session.deactivate()
+		theme.dispose()
 		scope.__dshOs = undefined
 	}
 	scope.__dshOs = { dispose }
 	;(window as typeof window & { __dshOsState?: () => unknown }).__dshOsState = () => ({
 		home: isHome(ctx.sessions.list.getSnapshot()),
+		workspace: currentWorkspace(ctx.sessions.list.getSnapshot()),
 		settings: settings.value,
 		active: session.active,
 		field: Boolean(session.field),
-		snapshot: ctx.sessions.list.getSnapshot(),
+		tone: resolveTone(settings.value.tone, theme.tone),
+		hostTone: theme.tone,
 	})
 	if (ctx.effect) ctx.effect(() => dispose, 'dsh-os: desktop')
 }

@@ -10,7 +10,7 @@ import { Boot } from '../src/client/os/Boot'
 import { OsSettingsPanel } from '../src/client/os/settings-panel'
 import { inkPalette, paletteFor, paletteVars, SettingsStore, type Settings } from '../src/client/settings'
 import { CSS, STYLE_ID } from '../src/client/styles'
-import type { Geometry, HarnessSnapshot, LogLine, MetricsPayload } from '../src/client/types'
+import type { Geometry, HarnessPayload, HarnessSessionRow, LogLine, MetricsPayload, ModelUsageRow, ScopeStats } from '../src/client/types'
 
 const style = document.createElement('style')
 style.id = STYLE_ID
@@ -28,14 +28,17 @@ store.value = {
   ...store.value,
   pattern: (params.get('pattern') as Settings['pattern']) ?? 'rain',
   accent: (params.get('accent') as Settings['accent']) ?? 'dsh',
+  tone: (params.get('tone') as Settings['tone']) ?? 'dark',
   boot: params.has('boot'),
   enabled: true,
-  skinSidebar: true,
   skinComposer: true,
   ledger: true,
+  scope: 'space',
 }
 const settings = store.value
-const palette = paletteFor(settings)
+const tone = settings.tone === 'auto' ? 'dark' : settings.tone
+document.documentElement.dataset.dosTone = tone
+const palette = paletteFor(settings, tone)
 for (const [property, value] of Object.entries(paletteVars(palette))) document.documentElement.style.setProperty(property, value)
 
 // ?win=1 模拟没有 /proc、/sys 的平台（Windows/macOS）下的布局
@@ -66,27 +69,89 @@ if (winMode) {
 }
 
 const now = Date.now()
-const harness: HarnessSnapshot = {
-  total: 27,
-  running: 1,
-  blank: 3,
-  workspaces: 9,
-  workspace: 'dsh-os',
-  model: 'medium',
-  recent: [
-    { id: 'a', title: 'dsh-os: cyberpunk home page', running: true, updatedAt: now - 20_000, blank: false, workspace: '/root/projects/dsh-os' },
-    { id: 'b', title: 'fix token meter projection', running: false, updatedAt: now - 3_600_000, blank: false, workspace: '/root/projects/dsh-os' },
-    { id: 'c', title: 'stage-ai reader refactor', running: false, updatedAt: now - 7_200_000, blank: false, workspace: '/root/projects/stage-ai' },
-    { id: 'd', title: 'luna 记忆整理', running: false, updatedAt: now - 86_400_000, blank: false, workspace: '/root/agents/luna' },
-  ],
-  ledger: [
-    { id: 'a', title: 'dsh-os: cyberpunk home page', preset: 'medium', input: 1_240_000, output: 38_400, cacheRead: 1_100_000, cacheRatio: 0.89, tps: 41 },
-    { id: 'b', title: 'fix token meter projection', preset: 'medium', input: 640_000, output: 24_100, cacheRead: 512_000, cacheRatio: 0.8, tps: 38 },
-    { id: 'c', title: 'stage-ai reader refactor', preset: 'high', input: 512_000, output: 19_800, cacheRead: 480_000, cacheRatio: 0.94, tps: 22 },
-    { id: 'd', title: 'luna 记忆整理', preset: 'low', input: 220_000, output: 12_400, cacheRead: 190_000, cacheRatio: 0.86, tps: 55 },
-  ],
-  totals: { input: 3_912_000, output: 128_400, cacheRead: 3_420_000, cacheWrite: 96_000 },
-  context: { sessionTitle: 'dsh-os: cyberpunk home page', pressure: 84_200, projected: 91_600, window: 128_000, input: 1_240_000, output: 38_400, cacheRead: 1_200_000, cacheWrite: 42_000 },
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+
+function totals(sessions: number, input: number, output: number, cacheRead: number) {
+  return { sessions, input, output, cacheRead, cacheWrite: 0 }
+}
+
+function stats(over: Partial<ScopeStats>): ScopeStats {
+  const base: ScopeStats = {
+    sessions: 27,
+    active: 14,
+    running: 1,
+    subagents: 2,
+    blank: 3,
+    today: { sessions: 6, input: 3_140_000, output: 248_000, cacheRead: 12_400_000 },
+    lastActiveAt: now - 40_000,
+    tokens: { input: 41_200_000, output: 3_840_000, cacheRead: 168_000_000, cacheWrite: 96_000 },
+    windows: {
+      h24: totals(6, 3_140_000, 248_000, 12_400_000),
+      d7: totals(14, 12_800_000, 980_000, 52_000_000),
+      all: totals(27, 41_200_000, 3_840_000, 168_000_000),
+    },
+    topModel: 'cpa/medium',
+  }
+  return { ...base, ...over }
+}
+
+function models(over: Partial<ModelUsageRow>[] = []): ModelUsageRow[] {
+  return over.map((row) => ({
+    model: 'medium',
+    provider: 'cpa',
+    sessions: 12,
+    input: 18_400_000,
+    output: 1_640_000,
+    cacheRead: 76_000_000,
+    cacheWrite: 0,
+    tps: 62,
+    cacheRatio: 0.8,
+    lastAt: now - 40_000,
+    lastSessionId: 'a',
+    windows: {
+      h24: totals(4, 2_400_000, 180_000, 9_100_000),
+      d7: totals(9, 8_200_000, 640_000, 31_000_000),
+      all: totals(12, 18_400_000, 1_640_000, 76_000_000),
+    },
+    ...row,
+  })) as ModelUsageRow[]
+}
+
+function sessions(ids: string[]): HarnessSessionRow[] {
+  const pool: HarnessSessionRow[] = [
+    { id: 'a', title: 'dsh-os 首页 HUD 重构', cwd: '/root/projects/dsh-os', workspace: 'dsh-os', model: 'cpa/medium', input: 5_420_000, output: 612_000, cacheRead: 42_000_000, running: true, subagentActive: false, subagents: 2, subagent: false, updatedAt: now - 40_000, blank: false },
+    { id: 'b', title: '会话投影索引与账本口径', cwd: '/root/projects/dsh-os', workspace: 'dsh-os', model: 'cpa/medium', input: 2_140_000, output: 288_000, cacheRead: 18_200_000, running: false, subagentActive: false, subagents: 0, subagent: false, updatedAt: now - 3 * HOUR, blank: false },
+    { id: 'c', title: '排队中的 lint 清理', cwd: '/root/projects/dsh-os', workspace: 'dsh-os', model: 'cpa/low', input: 620_000, output: 84_000, cacheRead: 4_400_000, running: false, subagentActive: false, subagents: 0, subagent: false, updatedAt: now - 9 * HOUR, blank: false },
+    { id: 'd', title: '代理节点健康检查', cwd: '/root/projects/proxy', workspace: 'proxy', model: 'cpa/lite', input: 3_400_000, output: 520_000, cacheRead: 26_000_000, running: false, subagentActive: false, subagents: 0, subagent: false, updatedAt: now - 5 * HOUR, blank: false },
+  ]
+  return ids.map((id) => pool.find((row) => row.id === id)!).filter(Boolean)
+}
+
+const harness: HarnessPayload = {
+  t: now,
+  store: { ok: true, root: '/root/.dsh/storages', sessions: 3487, scannedAt: now - 8_000, partial: false, error: null },
+  scope: { path: '/root/projects/dsh-os', name: 'dsh-os' },
+  space: stats({ sessions: 9, active: 4, running: 2, subagents: 2 }),
+  all: stats({}),
+  models: {
+    space: models([
+      { model: 'medium', sessions: 4, input: 7_560_000, output: 900_000, cacheRead: 60_200_000, tps: 74, cacheRatio: 0.89 },
+      { model: 'omni', sessions: 1, input: 1_960_000, output: 402_000, cacheRead: 8_600_000, tps: 90, cacheRatio: 0.81 },
+      { model: 'low', sessions: 3, input: 1_140_000, output: 152_000, cacheRead: 4_800_000, tps: 98, cacheRatio: 0.81 },
+      { model: 'high', sessions: 1, input: 890_000, output: 176_000, cacheRead: 6_400_000, tps: 44, cacheRatio: 0.88 },
+    ]),
+    all: models([
+      { model: 'lite', provider: 'cpa', sessions: 792, input: 412_000_000, output: 24_800_000, cacheRead: 1_240_000_000, tps: 76, cacheRatio: 0.75 },
+      { model: 'medium', sessions: 711, input: 388_000_000, output: 28_400_000, cacheRead: 1_180_000_000, tps: 114, cacheRatio: 0.75 },
+      { model: 'omni', sessions: 505, input: 240_000_000, output: 18_200_000, cacheRead: 720_000_000, tps: 196, cacheRatio: 0.75 },
+      { model: 'high', sessions: 343, input: 180_000_000, output: 14_800_000, cacheRead: 520_000_000, tps: 88, cacheRatio: 0.74 },
+      { model: '', provider: '', sessions: 472, input: 160_000_000, output: 12_400_000, cacheRead: 480_000_000, tps: 64, cacheRatio: 0.75 },
+    ]),
+  },
+  sessions: sessions(['a', 'b', 'c']),
+  sessionsAll: sessions(['a', 'b', 'c', 'd']),
+  running: sessions(['a']).map((row) => ({ ...row, running: true })),
 }
 
 const logs: LogLine[] = [
@@ -101,6 +166,7 @@ function App(): JSX.Element {
   useEffect(() => {
     if (!canvasRef.current || settings.pattern === 'off') return
     const field = createGlyphField(canvasRef.current, { pattern: settings.pattern })
+    field.setSurface(tone)
     field.setPalette(inkPalette(palette), palette.key)
     field.setSignal({ cpu: metrics.cpu.total, mem: metrics.mem.percent, rx: metrics.net.rxBps, tx: metrics.net.txBps, load: metrics.load[0], running: 1 })
     field.setClearRect({ x: hero.x - 24, y: hero.y - 24, w: hero.w + 48, h: hero.h + 48 })
@@ -137,8 +203,16 @@ function App(): JSX.Element {
       </div>
       <Desktop
         metrics={metrics} harness={harness} logs={logs} settings={settings} geometry={geometry}
-        now={now} fps={10} active
-        actions={{ openSession: () => {}, toggleField: () => {}, replayBoot: () => {}, hide: () => {}, openSettings: () => {} }}
+        now={now} fps={10} active window="all"
+        actions={{
+          openSession: () => {},
+          toggleField: () => {},
+          replayBoot: () => {},
+          openSettings: () => {},
+          setScope: (scope) => store.set({ scope }),
+          setTone: (next) => store.set({ tone: next }),
+          setWindow: () => {},
+        }}
       />
       {settings.boot && <Boot metrics={metrics} harness={harness} onDone={() => {}} />}
     </>

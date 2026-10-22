@@ -1,34 +1,38 @@
 /**
- * 桌面：顶栏、三块窗格（SYS / LEDGER / HARNESS）、底部控制台与任务栏。
+ * 桌面：顶栏、四块窗格（SYS / WORKSPACE / SESSIONS / MODEL·LEDGER）与任务栏。
  *
  * 位置全部从实测几何推出来——中央列在哪、hero 占多高，窗格就贴着让出来的
- * 空白放；空间不够时先撤 LEDGER，再撤两侧窗格，退化成一条压缩状态条。
+ * 空白放；空间不够时先撤模型账本，再退化成一条压缩状态条。
  *
  * @module dsh-os/os/Desktop
  */
 
 import type { CSSProperties } from 'react'
-import { clock, date, duration, percent } from '../format'
-import type { Settings } from '../settings'
-import type { Geometry, HarnessSnapshot, LogLine, MetricsPayload } from '../types'
-import { ConsolePanel, HarnessPanel, LedgerPanel, SessionsPanel, SystemPanel } from './panels'
+import { clock, date, duration, percent, tokens } from '../format'
+import type { Settings, ToneChoice } from '../settings'
+import type { Geometry, HarnessPayload, LedgerWindow, LogLine, MetricsPayload } from '../types'
+import { ModelLedgerPanel, SessionsPanel, SystemPanel, WorkspacePanel } from './panels'
+import { Seg } from './chrome'
 
 export interface DesktopActions {
 	openSession: (id: string) => void
 	toggleField: () => void
 	replayBoot: () => void
-	hide: () => void
 	openSettings: () => void
+	setScope: (scope: 'space' | 'all') => void
+	setTone: (tone: ToneChoice) => void
+	setWindow: (window: LedgerWindow) => void
 }
 
 export interface DesktopProps {
 	metrics: MetricsPayload | null
-	harness: HarnessSnapshot
+	harness: HarnessPayload
 	logs: LogLine[]
 	settings: Settings
 	geometry: Geometry
 	now: number
 	fps: number
+	window: LedgerWindow
 	active: boolean
 	actions: DesktopActions
 }
@@ -40,7 +44,24 @@ function box(x: number, y: number, w: number, h: number): CSSProperties {
 	return { left: Math.round(x), top: Math.round(y), width: Math.round(w), height: Math.round(h) }
 }
 
-export function Desktop({ metrics, harness, logs, settings, geometry, now, fps, active, actions }: DesktopProps): JSX.Element {
+const TONE_OPTIONS: { key: ToneChoice; label: string; hint: string }[] = [
+	{ key: 'auto', label: 'SYS', hint: '跟随宿主主题' },
+	{ key: 'dark', label: 'DARK', hint: '霓虹终端' },
+	{ key: 'light', label: 'LIGHT', hint: '纸面蓝图' },
+]
+
+export function Desktop({
+	metrics,
+	harness,
+	logs,
+	settings,
+	geometry,
+	now,
+	fps,
+	window,
+	active,
+	actions,
+}: DesktopProps): JSX.Element {
 	const { col, hero } = geometry
 	const narrow = col.w < 640
 	const dense = col.w < 780 || col.h < 640
@@ -50,71 +71,86 @@ export function Desktop({ metrics, harness, logs, settings, geometry, now, fps, 
 	const panelHeight = clamp(heroTop - contentStart - 16, 150, 286)
 	const panelWidth = clamp(col.w * 0.245, 224, 292)
 	const taskbarHeight = 26
-	const consoleHeight = dense ? 58 : 124
-	const bottomTop = col.y + col.h - taskbarHeight - consoleHeight - 12
+	const listHeight = dense ? 58 : 156
+	const bottomTop = col.y + col.h - taskbarHeight - listHeight - 12
 	const leftX = col.x + 16
 	const rightX = col.x + col.w - 16 - panelWidth
-	const gap = col.w - 32 - panelWidth * 2
-	const ledgerWidth = Math.min(560, gap - 20)
-	const showLedger = !dense && settings.ledger && gap >= 380 && settings.pattern !== 'dshchan'
+	const ledgerWidth = col.w - 32 - panelWidth - 10
+	const showLedger = !dense && settings.ledger && ledgerWidth >= 420
 	const compact = panelHeight < 272
 
-	const context = harness.context
-	const contextPercent =
-		context && context.window && (context.projected ?? context.pressure)
-			? ((context.projected ?? context.pressure ?? 0) / context.window) * 100
-			: 0
+	const scope = settings.scope
+	const stats = scope === 'all' ? harness.all : harness.space
+	const models = scope === 'all' ? harness.models.all : harness.models.space
+	const sessions = scope === 'all' ? harness.sessionsAll : harness.sessions
+	const busy = stats.running > 0 || stats.subagents > 0
+	const lastLog = logs[logs.length - 1]
 
 	return (
 		<div className="dos-root" data-phase={active ? 'live' : 'off'}>
 			{/* 顶栏 */}
 			<div className="dos-rail" style={{ left: Math.round(col.x + 56), top: Math.round(railTop), width: Math.round(col.w - 112) }}>
 				<div className="dos-rail-left">
-					<span className="dos-mark">▚▞ <b>DSH-OS</b></span>
-					<span className="dos-mark-sub">deepseek harness · operating system</span>
+					<span className="dos-mark">
+						▚▞ <b>DSH-OS</b>
+					</span>
+					{!narrow && <span className="dos-mark-sub">deepseek harness · operating system</span>}
 				</div>
 				<div className="dos-rail-mid" />
 				<div className="dos-rail-right">
-					<span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-						<i className="dos-led" data-tone="ok" /> sys online
+					<span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} data-tone={busy ? 'hot' : undefined}>
+						<i className="dos-led" data-tone={busy ? 'hot' : 'idle'} data-pulse={busy ? '1' : undefined} />
+						{stats.running} run
+					</span>
+					<span className="dos-rail-stat">
+						<b>{stats.sessions}</b> sess
 					</span>
 					{!narrow && (
-						<>
-							<span>{metrics ? `pid ${metrics.node.pid}` : 'pid --'}</span>
-							<span>{metrics?.net.iface ?? 'net --'}</span>
-							<span>{metrics ? `up ${duration(metrics.host.uptimeSec)}` : 'up --'}</span>
-						</>
+						<span className="dos-rail-stat">
+							<b>{tokens(stats.today.input + stats.today.output)}</b> tok today
+						</span>
 					)}
 					<span className="dos-clock">{clock(now)}</span>
 					{!narrow && <span>{date(now)}</span>}
 				</div>
 			</div>
 
-			{/* 宽屏：三块窗格 */}
+			{/* 宽屏：四块窗格 */}
 			{!dense && (
 				<>
-					<SystemPanel metrics={metrics} fps={fps} compact={compact} style={box(leftX, contentStart, panelWidth, panelHeight)} />
-					<HarnessPanel harness={harness} metrics={metrics} fps={fps} compact={compact} style={box(rightX, contentStart, panelWidth, panelHeight)} />
+					<SystemPanel metrics={metrics} fps={fps} height={panelHeight} style={box(leftX, contentStart, panelWidth, panelHeight)} />
+					<WorkspacePanel
+						harness={harness}
+						metrics={metrics}
+						scope={scope}
+						now={now}
+						compact={compact}
+						style={box(rightX, contentStart, panelWidth, panelHeight)}
+					/>
+					<SessionsPanel
+						sessions={sessions}
+						now={now}
+						onOpen={actions.openSession}
+						compact={listHeight < 100}
+						style={box(leftX, bottomTop, panelWidth, listHeight)}
+					/>
 					{showLedger && (
-						<LedgerPanel
-							rows={harness.ledger}
-							totals={harness.totals}
+						<ModelLedgerPanel
+							harness={harness}
+							models={models}
+							stats={stats}
+							window={window}
+							onWindow={actions.setWindow}
+							scope={scope}
 							onOpen={actions.openSession}
-							compact={panelHeight < 260}
-							style={box(leftX + panelWidth + (gap - ledgerWidth) / 2, contentStart, ledgerWidth, panelHeight)}
+							compact={listHeight < 100}
+							style={box(leftX + panelWidth + 10, bottomTop, ledgerWidth, listHeight)}
 						/>
 					)}
-					<SessionsPanel
-						sessions={harness.recent}
-						onOpen={actions.openSession}
-						compact={consoleHeight < 100}
-						style={box(leftX, bottomTop, panelWidth, consoleHeight)}
-					/>
-					<ConsolePanel logs={logs} now={now} style={box(leftX + panelWidth + 10, bottomTop, col.w - 32 - panelWidth - 10, consoleHeight)} />
 				</>
 			)}
 
-			{/* 窄屏：一条压缩状态 + 控制台 */}
+			{/* 窄屏：两条压缩状态 */}
 			{dense && (
 				<>
 					<div className="dos-compact" style={box(leftX, contentStart, col.w - 32, 20)}>
@@ -127,11 +163,11 @@ export function Desktop({ metrics, harness, logs, settings, geometry, now, fps, 
 						</span>
 						<span className="sep">|</span>
 						<span>
-							SESS <b>{harness.running}/{harness.total}</b>
+							SESS <b>{stats.running}/{stats.sessions}</b>
 						</span>
 						<span className="sep">|</span>
 						<span>
-							CTX <b>{contextPercent > 0 ? percent(contextPercent) : '--'}</b>
+							TOK <b>{tokens(stats.today.input + stats.today.output)}</b>
 						</span>
 						{!narrow && (
 							<>
@@ -143,7 +179,7 @@ export function Desktop({ metrics, harness, logs, settings, geometry, now, fps, 
 						)}
 					</div>
 					<div className="dos-compact" style={{ ...box(leftX, bottomTop, col.w - 32, 20), justifyContent: 'space-between' }}>
-						<span className="dos-ticker">{logs[logs.length - 1]?.msg ?? 'telemetry'}</span>
+						<span className="dos-ticker">{lastLog?.msg ?? 'telemetry'}</span>
 						<span>
 							UP <b>{metrics ? duration(metrics.host.uptimeSec) : '--'}</b>
 						</span>
@@ -157,32 +193,39 @@ export function Desktop({ metrics, harness, logs, settings, geometry, now, fps, 
 				style={{ left: Math.round(col.x), top: Math.round(col.y + col.h - taskbarHeight), width: Math.round(col.w) }}
 			>
 				<span className="dos-mark" style={{ fontSize: 10 }}>
-					▚ DSH-OS {!narrow && <span style={{ color: 'var(--dos-ink-faint)' }}>1.0</span>}
+					▚ DSH-OS {!narrow && <span style={{ color: 'var(--dos-ink-faint)' }}>2.0</span>}
 				</span>
 				<button className="dos-chip" data-on={settings.pattern !== 'off' ? '1' : '0'} onClick={actions.toggleField} type="button">
 					field
 				</button>
-				{!narrow && (
-					<button className="dos-chip" onClick={actions.replayBoot} type="button">
-						boot
-					</button>
-				)}
 				<button className="dos-chip" onClick={actions.openSettings} type="button">
 					settings
 				</button>
 				{!narrow && (
-					<span className="dos-ticker">
-						{logs[logs.length - 1] ? `${clock(logs[logs.length - 1]!.at)} · ${logs[logs.length - 1]!.msg}` : ''}
-					</span>
+					<>
+						<button className="dos-chip" onClick={actions.replayBoot} type="button">
+							boot
+						</button>
+						<Seg
+							options={[
+								{ key: 'space' as const, label: 'WS', hint: '只看当前工作区' },
+								{ key: 'all' as const, label: 'ALL', hint: '全机所有工作区' },
+							]}
+							value={scope}
+							onPick={actions.setScope}
+							label="统计口径"
+						/>
+						<Seg options={TONE_OPTIONS} value={settings.tone} onPick={actions.setTone} label="明暗" />
+						<span className="dos-ticker">{lastLog ? `${clock(lastLog.at)} · ${lastLog.msg}` : 'telemetry 2s'}</span>
+						<span className="dos-keys">
+							<kbd>`</kbd> toggle
+							<kbd>esc</kbd> skip
+						</span>
+					</>
 				)}
-				{narrow ? (
+				{narrow && (
 					<span className="dos-keys" style={{ marginLeft: 'auto' }}>
 						<kbd>`</kbd>
-					</span>
-				) : (
-					<span className="dos-keys">
-						<kbd>`</kbd> toggle
-						<kbd>esc</kbd> skip
 					</span>
 				)}
 			</div>
