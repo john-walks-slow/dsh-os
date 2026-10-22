@@ -14,6 +14,10 @@ Reskinning goes through DSH's official theme token overlay (`ctx.theme.overrideT
 | :---: | :---: |
 | ![Session Dark](<screenshots/session-dark.png>) | ![Session Light](<screenshots/session-light.png>) |
 
+| Host Native Settings (dark) | Host Native Settings (light) |
+| :---: | :---: |
+| ![Native Settings Dark](<screenshots/settings-native-dark.png>) | ![Native Settings Light](<screenshots/settings-native-light.png>) |
+
 | Home · Sparse Rain (dark) | Home · Paper Blueprint (light) |
 | :---: | :---: |
 | ![Rain Pattern](<screenshots/home-rain.png>) | ![Light Tone](<screenshots/home-light.png>) |
@@ -37,12 +41,12 @@ Reskinning goes through DSH's official theme token overlay (`ctx.theme.overrideT
 1. **Whole-GUI Theme**
    - Rewrites 150+ tokens through the official token overlay — `--dsw-alias-*` / `--dsw-specific-*` / radii / heights / shiki syntax highlighting: the session stream, sidebar, code blocks, tool cards, diffs, dialogs, menus, scrollbars, composer and settings page all **change ink together**.
    - Light and dark are decided by the host theme (follow the system / follow the host) and never hijack your preference: dark is night-flight terminal glass, light is blueprint paper.
-   - Accent colour is a single source that applies app-wide (taskbar chips, the settings page, or `SYS / DARK / LIGHT` in the session telemetry strip).
+   - Accent colour is a single source that applies app-wide (taskbar chips, the settings page, or `SYS / DARK / LIGHT` in the session telemetry strip); the host's native settings window, menus, toasts and tooltips sit under the same tokens.
    - Only colours, fonts, letter spacing and radii change — **layout is untouched**: the sidebar's and session stream's sizing and interaction contracts stay exactly as they are, so official upgrades rarely break the look.
 
 2. **Session Telemetry Strip**
    - A 21px status band at the top of the session view: model, context pressure gauge (percentage plus used/window), this session's input / output / cache hits, decode speed and age.
-   - Click the arrow to expand details: context breakdown (how much goes to system / tools / messages), cache reads and writes, decode time and the session id. Click anywhere else or scroll to collapse; `Esc` works too.
+   - Click the arrow to expand details: context breakdown (how much goes to system / tools / messages), cache reads and writes, decode time and the session id; expanding **yields that height from the top** of the session stream (the bottom edge stays put), so the body text is never squeezed. Click anywhere else or scroll to collapse; `Esc` works too.
    - The numbers are **right now**: real readings projected by the host when the session opens (`tokenUsage` / `contextPressure` / `contextBreakdown` / `sessionStats`), not estimates.
 
 3. **Host Monitor (SYS · MONITOR)**
@@ -159,6 +163,7 @@ Rows that a platform cannot provide are hidden entirely (the SYS panel tags the 
 npm run build          # build lib/index.js and lib/client.js
 npm run typecheck      # tsc --noEmit
 npm run e2e            # isolated dsh-e2e instance + headless smoke test (seeds fixtures)
+npm run e2e:session    # session view checks: real telemetry readings, detail card not squeezing the body, in-card ink change
 npm run e2e:shots      # regenerate the official screenshots in screenshots/
 ```
 

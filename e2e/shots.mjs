@@ -143,6 +143,38 @@ if (conversation) {
 	}
 }
 
+// 宿主原生设置窗口：主题是否"覆盖整个 GUI"最有说服力的一张（侧边栏 Settings 入口）
+for (const shot of [
+	{ name: 'settings-native-dark', chip: 'DARK' },
+	{ name: 'settings-native-light', chip: 'LIGHT' },
+]) {
+	const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
+	await context.addInitScript(() => {
+		window.sessionStorage.setItem('dsh-os:booted', '1')
+		localStorage.setItem('dsh-os:settings', JSON.stringify({ enabled: true, skin: true, strip: true, boot: false, pattern: 'rain', tone: 'auto', scope: 'space' }))
+	})
+	const page = await context.newPage()
+	await page.goto(url, { waitUntil: 'domcontentloaded' })
+	await page.waitForTimeout(6500)
+	await clearNotice(page)
+	// 明暗先切（切完 token 才会落在设置窗口上），再打开设置
+	await page
+		.locator('.dos-taskbar')
+		.getByRole('button', { name: shot.chip, exact: true })
+		.click({ timeout: 8000 })
+		.catch(() => null)
+	await page.waitForTimeout(1400)
+	// 侧边栏入口的点击会被引导弹窗的残余遮罩挡住，直接派发点击最稳
+	await page.evaluate(() => {
+		document.querySelector('[class*="_settingsArea"] button, [class*="_settingsArea"] [role="button"]')?.click()
+	})
+	await page.waitForSelector('[class*="VOzbGW_panel"]', { timeout: 8000 }).catch(() => null)
+	await page.waitForTimeout(1600)
+	await page.screenshot({ path: `screenshots/${shot.name}.png` })
+	console.log(`✓ screenshots/${shot.name}.png`)
+	await context.close()
+}
+
 // 开机自检：这张不跳过 POST 序列，等它演到中段
 {
 	const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })

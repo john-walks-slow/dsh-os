@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit",
     "shot": "node tools/shot.mjs",
     "e2e": "dsh-e2e run e2e/smoke.mjs",
+    "e2e:session": "dsh-e2e run e2e/session.mjs",
     "prepack": "npm run build",
     "e2e:shots": "dsh-e2e run e2e/shots.mjs"
   },

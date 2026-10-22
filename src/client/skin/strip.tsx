@@ -175,8 +175,35 @@ export function SessionStrip({
 	const cardRef = useRef<HTMLDivElement>(null)
 	const seatRef = useRef<HTMLDivElement>(null)
 
-	// 明细卡是"临时浮层"：正文不该被长期压住，所以点外面或开始滚动就收起
-	// （会话流是贴底滚动的，加 padding 改不了可视位置，压不住也推不开）。
+	// 展开时把明细卡的高度写进 CSS 变量：会话流从**顶部**让出这段高度
+	// （滚动容器是 flex 子项，margin-top 压缩的是它的可视高度，下缘不动，
+	// 所以最新一条消息不会被挤走，也没有任何正文被浮层压住）。
+	useLayoutEffect(() => {
+		const root = document.documentElement
+		if (!open) {
+			root.removeAttribute('data-dos-strip-card')
+			root.style.removeProperty('--dos-strip-room')
+			return
+		}
+		const card = cardRef.current
+		if (!card) return
+		// 卡片高度会随投影刷新而变（上下文构成的行数），用 ResizeObserver 跟住它，
+		// 否则让出的空间会偏小，正文又会被压住。
+		const sync = (): void => {
+			root.style.setProperty('--dos-strip-room', `${Math.round(21 + card.getBoundingClientRect().height + 10)}px`)
+		}
+		sync()
+		root.setAttribute('data-dos-strip-card', '')
+		const observer = new ResizeObserver(sync)
+		observer.observe(card)
+		return () => {
+			observer.disconnect()
+			root.removeAttribute('data-dos-strip-card')
+			root.style.removeProperty('--dos-strip-room')
+		}
+	}, [open])
+
+	// 明细卡是"临时浮层"：点外面或开始滚动就收起。
 	useLayoutEffect(() => {
 		if (!open) return
 		const close = (event: Event): void => {

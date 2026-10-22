@@ -113,7 +113,14 @@ function measure(): Geometry {
 		return { x: rect.x, y: rect.y, w: rect.width, h: rect.height }
 	}
 	const col = box(colEl) ?? { x: 0, y: 0, w: view.w, h: view.h }
-	return { col, hero: box(heroEl), session: box(document.querySelector('[data-conversation-scroll]')), view }
+	// 明细卡展开时滚动容器被 margin-top 顶下来让位，但条子本身要钉在原地：
+	// 把让出的高度减回去，条子才不会被自己的让位推着走。
+	const session = box(document.querySelector('[data-conversation-scroll]'))
+	if (session) {
+		const room = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dos-strip-room'))
+		if (Number.isFinite(room) && room > 0) session.y -= room
+	}
+	return { col, hero: box(heroEl), session, view }
 }
 
 function prefersReducedMotion(): boolean {

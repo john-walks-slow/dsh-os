@@ -24,7 +24,9 @@
 - `src/client/field/`：Canvas 字符动效引擎（`rain` 稀疏字符雨、`dshchan` 3D 全息投影、`field` 等高线拓扑）；`chan-art.ts` 由 `tools/chan-art.py` 从立绘生成，勿手改。
 - `src/client/os/`：HUD 桌面（`Desktop.tsx`）、窗格（`panels.tsx`：SYS·MONITOR / WORKSPACE·OVERVIEW / SESSIONS·RECENT / MODEL·LEDGER）、构件（`chrome.tsx`）、开机自检（`Boot.tsx`）与设置面板（`settings-panel.tsx`）。
 - `src/client/settings.ts`：偏好存储（localStorage）与主题色选择。**不再持有颜色**，色源在 `skin/palette.ts`。
-- `e2e/smoke.mjs`：基于 `dsh-e2e` 的无头端到端冒烟测试（含主题 token 断言与"背景与文字同亮"的对比度哨兵）；`e2e/lib/fixtures.mjs` 播种会话投影夹具；`e2e/shots.mjs` 重出官方截图；`e2e/seed-conversation.mjs` 把本机真实会话日志搬进隔离 home（会话截图用）。
+- `e2e/smoke.mjs`：首页桌面层的无头端到端冒烟测试（含主题 token 断言与"背景与文字同亮"的对比度哨兵）。
+- `e2e/session.mjs`：会话视图检查（遥测条真实读数、明细卡让位且不压正文、卡片内换墨），需要隔离 home 里有真实会话日志，否则明确跳过。
+- `e2e/lib/fixtures.mjs` 播种会话投影夹具；`e2e/shots.mjs` 重出官方截图；`e2e/seed-conversation.mjs` 把本机真实会话日志搬进隔离 home（会话截图与 `e2e:session` 用）。
 - `tools/preview.tsx`：离线设计预览页（假数据渲染 Desktop / 设置页），不参与插件产物。
 
 ## 开发与构建规则
@@ -33,5 +35,5 @@
 2. **构建一致性校验**：所有改动完成后必须执行 `npm run build`；浏览器半边改完还要 `npm run typecheck`。
 3. **皮肤铁律：只碰 color / background / border-color / font / letter-spacing / text-transform / border-radius，绝不碰 padding / margin / width / height / position / display / overflow / flex / grid**。侧边栏与会话流的尺寸是官方契约（`--dsh-sidebar-inline-padding`、`--dsh-session-list-*`、`container-type` 等），历史上改坏过一次；完整"不要动"清单见 `docs/references/261022-dsh-theme-surface-map.md` 第 7.3 节。
 4. **窗格不许静默裁切**：`.dos-panel` 是 `overflow: hidden`，行数必须由可用高度算出来（见 `panels.tsx` 的 `systemRows`），并由 e2e 的 "窗格内容不被静默裁掉" 用例守住。
-5. **测试规范**：日常验证采用 `npm run e2e`（底层由 `dsh-e2e` 托管，动态分配独立端口与隔离 home），截图用 `npm run e2e:shots`；两者都会播种夹具，测试脚本自己负责清理上一轮夹具（`resetFixtures`）。测试完成必须及时执行 `dsh-e2e stop` 释放槽位与内存。
+5. **测试规范**：日常验证采用 `npm run e2e`（首页桌面层）与 `npm run e2e:session`（会话视图，需先 `node e2e/seed-conversation.mjs` 并重启实例），底层由 `dsh-e2e` 托管、动态分配独立端口与隔离 home；截图用 `npm run e2e:shots`；两者都会播种夹具，测试脚本自己负责清理上一轮夹具（`resetFixtures`）。测试完成必须及时执行 `dsh-e2e stop` 释放槽位与内存。
 6. **线上服务守护**：严禁未经用户明确书面同意重启线上 DSH 服务。

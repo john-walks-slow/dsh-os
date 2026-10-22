@@ -14,6 +14,10 @@ DeepSeek Harness OS：一套覆盖**整个** DSH Web GUI 的主题 —— 会话
 | :---: | :---: |
 | ![Session Dark](<screenshots/session-dark.png>) | ![Session Light](<screenshots/session-light.png>) |
 
+| 宿主原生设置窗口（深色） | 宿主原生设置窗口（浅色） |
+| :---: | :---: |
+| ![Native Settings Dark](<screenshots/settings-native-dark.png>) | ![Native Settings Light](<screenshots/settings-native-light.png>) |
+
 | 首页 · 稀疏字符雨（深色） | 首页 · 纸面蓝图（浅色） |
 | :---: | :---: |
 | ![Rain Pattern](<screenshots/home-rain.png>) | ![Light Tone](<screenshots/home-light.png>) |
@@ -37,12 +41,12 @@ DeepSeek Harness OS：一套覆盖**整个** DSH Web GUI 的主题 —— 会话
 1. **全应用主题（Whole-GUI Theme）**
    - 通过官方 token 覆盖层改写 `--dsw-alias-*` / `--dsw-specific-*` / 圆角 / 高度 / shiki 语法高亮共 150+ 个词条：会话流、侧边栏、代码块、工具卡、diff、弹窗、菜单、滚动条、输入框、设置页**一起换墨**。
    - 深浅两套由宿主主题决定（跟随系统 / 跟随宿主），不抢偏好：深色是夜航终端玻璃，浅色是蓝图纸面。
-   - 主题色一处改全应用生效（任务栏芯片、设置页或会话遥测条里的 `SYS / DARK / LIGHT`）。
+   - 主题色一处改全应用生效（任务栏芯片、设置页或会话遥测条里的 `SYS / DARK / LIGHT`）；宿主原生的设置窗口、菜单、Toast、Tooltip 同样在这套 token 之下。
    - 只改颜色、字体、字距与圆角，**不碰布局**：侧边栏、会话流的尺寸与交互契约原样保留，官方升级不易破版。
 
 2. **会话遥测条（Session Telemetry Strip）**
    - 会话视图顶端一条 21px 状态带：模型、上下文压力计（百分比 + 已用/窗口）、本会话输入/输出/缓存命中、解码速度、距今时间。
-   - 点箭头展开明细：上下文构成（system / tools / messages 各占多少）、缓存读写、解码时长、会话 id；点别处或滚动自动收起，`Esc` 也可。
+   - 点箭头展开明细：上下文构成（system / tools / messages 各占多少）、缓存读写、解码时长、会话 id；展开时会话流**从顶部让出这段高度**（下缘不动），正文不会被压住；点别处或滚动自动收起，`Esc` 也可。
    - 数据是**当下**的：宿主打开会话时投影的真实读数（`tokenUsage` / `contextPressure` / `contextBreakdown` / `sessionStats`），不是估算。
 
 3. **整机监控（SYS · MONITOR）**
@@ -159,7 +163,8 @@ Windows 上 `link:` 路径用正斜杠即可，例如 `"dsh-os": "link:C:/Users/
 ```bash
 npm run build          # 构建 lib/index.js 与 lib/client.js
 npm run typecheck      # tsc --noEmit
-npm run e2e            # dsh-e2e 隔离实例 + 无头冒烟测试（含夹具播种）
+npm run e2e            # dsh-e2e 隔离实例 + 无头冒烟测试（首页桌面层，含夹具播种）
+npm run e2e:session    # 会话视图检查：遥测条真实读数、明细卡不压正文、卡片内换墨
 npm run e2e:shots      # 重新生成 screenshots/ 里的官方截图
 ```
 

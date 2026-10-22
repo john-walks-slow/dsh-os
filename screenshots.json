@@ -34,5 +34,13 @@
   {
     "path": "screenshots/settings.png",
     "description": "内置设置页：桌面层开关、明暗墨色、背景动效、主题色与输入框皮肤"
+  },
+  {
+    "path": "screenshots/settings-native-dark.png",
+    "description": "宿主原生设置窗口（深色）：面板、圆角、描边、导航底色与毛玻璃遮罩全部来自 dsh-os 的 token 覆盖层"
+  },
+  {
+    "path": "screenshots/settings-native-light.png",
+    "description": "宿主原生设置窗口（浅色）：同一套 token 的另一套墨色"
   }
 ]

@@ -18,6 +18,10 @@ dsh-os 从"首页美化插件"变成"覆盖整个 DSH Web GUI 的主题"，并�
 - 明细卡（点箭头展开，点外面/滚动/`Esc` 收起）：上下文构成条（message/tools/system 各占多少）、缓存读写、解码时长与 TPS、会话 id，以及 `SYS / DARK / LIGHT` 明暗切换（任务栏只在首页，干活时要能换墨）。
 - 数据是真的：取打开中会话的 `tokenUsage` / `contextPressure` / `contextBreakdown` / `sessionStats`，并用 `ctx.sessions.refreshProjections` 催一次昂贵投影；`tokenUsage` 的扁平与 `{totals}` 两种形状都兼容。
 
+### 2.5 明细卡不再压正文
+
+最初明细卡是纯浮层，展开会盖住约 250px 正文。改为**从顶部让出真实高度**：滚动容器是 flex 子项，`margin-top` 压缩的是它的可视高度而下缘不动（会话流贴底滚动，最新一条不会被挤走），卡片高度由 `ResizeObserver` 跟住并写进 `--dos-strip-room`；同时遥测条自身的锚点要减掉这段让位高度，否则条子会被自己的让位推着走。e2e 用"裁剪感知"的几何检查证明：展开后没有任何可见正文落在卡片矩形内。
+
 ### 3. 修掉的真实缺陷
 
 - **白底白字**：`--dsw-alias-label-primary-inverted` 写成了与底色同向，深色下 contrast 药丸完全看不见。新增的 e2e「对比度哨兵」（扫描全页面"背景亮度与文字亮度差 < 40"的可见文本）当场抓出，修正为随墨色反向。
@@ -31,12 +35,12 @@ dsh-os 从"首页美化插件"变成"覆盖整个 DSH Web GUI 的主题"，并�
 | --- | --- |
 | `npm run typecheck` / `npm run build` | 通过 |
 | `npm run e2e` | 全绿（41 条断言，含 6 条新增主题断言 + 对比度哨兵） |
+| `npm run e2e:session` | 全绿（12 条断言：遥测条真实读数、明细卡让位且不压正文、卡片内换墨、点正文收起） |
 | `npm run e2e:shots` | 产出 `session-dark.png` / `session-light.png`（真实会话日志 + 真实读数） |
-| 视觉走查 | 深色会话正文完整可见；浅色无深色残留块；代码块/内联码/工具卡/错误块配色统一 |
+| 视觉走查 | 深色会话正文完整可见；浅色无深色残留块；代码块/内联码/工具卡/错误块配色统一；宿主原生设置窗口在深浅两色下都成套（面板、圆角、描边、导航底、毛玻璃遮罩全在我们的 token 之下） |
 
 ## 已知折衷
 
-- 明细卡展开时会盖住约 250px 正文（会话流是贴底滚动，加 padding 推不开内容）。策略是"临时浮层"，交互上即时收起；彻底解决需要滚动容器之外的挂载位，官方骨架目前没有。
 - deliverables / plan / schedule 三处官方卡片走 static 灰阶，只能用 static 覆盖统一，属于折衷而非干净解。
 - darwin（macOS）专属硬编码未处理：侧边栏品牌渐变与玻璃按钮在 macOS 上仍是原生观感。
 - 会话视图截图依赖本机真实会话日志（`e2e/seed-conversation.mjs` 会自动跳过无历史的环境）。

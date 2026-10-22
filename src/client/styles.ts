@@ -432,8 +432,17 @@ html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverPath"],
 html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverTime"],
 html.dsh-os-theme[data-dos-tone="light"] [class*="_hoverStatus"] { color: var(--dos-ink-dim); }
 
-/* 会话内遥测条：给会话流让出条子高度，条子本身是浮在留白上的玻璃带 */
+/* 会话内遥测条：条子本身浮在留白上，会话流顶部留出条子高度 */
 html.dsh-os-theme[data-dos-strip] [data-conversation-scroll] { padding-top: 26px; }
+/* 明细卡展开时改成"从顶部让出高度"：下缘不动，最新消息不被挤走，正文也不被压住 */
+html.dsh-os-theme[data-dos-strip-card] [data-conversation-scroll] {
+  padding-top: 0;
+  margin-top: var(--dos-strip-room, 0px);
+  transition: margin-top .18s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.dsh-os-theme[data-dos-strip-card] [data-conversation-scroll] { transition: none; }
+}
 
 .dos-strip { position: absolute; inset: 0 0 auto 0; pointer-events: none; z-index: 6; }
 .dos-strip-bar {
