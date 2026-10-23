@@ -1,7 +1,7 @@
 {
   "name": "dsh-os",
   "version": "0.3.0",
-  "description": "DeepSeek Harness OS: turn the DSH Web home page into a cyberpunk terminal desktop — animated ASCII field, boot self-test, and a live host/harness HUD with a real per-model token ledger. dsh-os：把 DSH Web 首页变成一台赛博终端桌面——ASCII 字符场动效、开机自检、真实系统与会话 Token 账本监控 HUD。",
+  "description": "DeepSeek Harness OS: a whole-GUI theme for the DSH Web interface — conversation flow, sidebar, code blocks, tool cards, dialogs and composer repainted in light and dark through the official theme-token layer, plus a home terminal desktop (ASCII field, boot self-test, live host/harness HUD with a real per-model token ledger) and an in-session telemetry strip. dsh-os：覆盖整个 DSH Web GUI 的主题——会话流、侧边栏、代码块、工具卡、弹窗与输入框用官方 token 层换墨（深浅两套），首页则是一台赛博终端桌面（ASCII 字符场、开机自检、真实系统与会话 Token 账本 HUD），会话内另有遥测条。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -54,7 +54,12 @@
     "首页",
     "赛博朋克",
     "字符画",
-    "系统监控"
+    "系统监控",
+    "theme",
+    "gui-theme",
+    "skin",
+    "telemetry-strip",
+    "主题"
   ],
   "author": "johnnren",
   "devDependencies": {
