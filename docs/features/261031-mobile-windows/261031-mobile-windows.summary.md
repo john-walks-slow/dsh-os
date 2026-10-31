@@ -23,8 +23,8 @@
 | `npm run typecheck` / `npm run build` | 通过 |
 | `npm run test:host`（Linux） | 通过 |
 | GitHub Actions [host · windows-latest](https://github.com/john-walks-slow/dsh-os/actions/runs/41205451554) | 通过（15 项断言，win32 x64） |
-| `npm run e2e`（1440 / 1280 / 1100 / 412） | 通过，61 条断言 |
-| `npm run e2e:session`（1440 + 412） | 通过，20 条断言 |
+| `e2e/smoke.mjs`（1440 / 1280 / 1100 / 412） | 通过，61 条断言 |
+| `e2e/session.mjs`（1440 + 412） | 通过，20 条断言 |
 
 ## 相关文件
 
