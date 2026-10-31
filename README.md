@@ -26,7 +26,7 @@ DeepSeek Harness OS：一套覆盖**整个** DSH Web GUI 的主题 —— 会话
 | :---: | :---: |
 | ![DSH Chan](<screenshots/home-dshchan.png>) | ![Field Pattern](<screenshots/home-field.png>) |
 
-| 开机自检序列（Boot POST） | 移动端自适应 |
+| 开机自检序列（Boot POST） | 移动端完整 HUD |
 | :---: | :---: |
 | ![Boot Sequence](<screenshots/boot.png>) | ![Mobile View](<screenshots/home-mobile.png>) |
 

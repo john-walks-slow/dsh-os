@@ -26,9 +26,9 @@ Reskinning goes through DSH's official theme token overlay (`ctx.theme.overrideT
 | :---: | :---: |
 | ![DSH Chan](<screenshots/home-dshchan.png>) | ![Field Pattern](<screenshots/home-field.png>) |
 
-| Boot POST Sequence | Mobile Responsive Layout |
+| Boot POST Sequence | Complete Mobile HUD |
 | :---: | :---: |
-| ![Boot Sequence](<screenshots/boot.png>) | ![Mobile View](<screenshots/home-mobile.png>) |
+| ![Boot Sequence](<screenshots/boot.png>) | ![Mobile HUD](<screenshots/home-mobile.png>) |
 
 | Integrated Settings Panel |
 | :---: |
