@@ -29,7 +29,7 @@
   },
   {
     "path": "screenshots/home-mobile.png",
-    "description": "窄屏移动端自适应：收起窗格，保留高密度状态条与任务栏"
+    "description": "窄屏移动端完整 HUD：底部抽屉按 SYS / WS / SESS / LEDGER 分页，账本、口径与明暗都可访问"
   },
   {
     "path": "screenshots/settings.png",

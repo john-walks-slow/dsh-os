@@ -187,22 +187,29 @@ function makeLogger() {
 	}
 }
 
-/** 打开宿主设置面板：点侧边栏最下面那颗 Settings。 */
+/** 打开宿主设置面板。新版侧边栏把入口收进了账号菜单，两种形态都要认。 */
 function openHostSettings(): void {
-	// 窄屏侧边栏会折成图标栏，设置入口只剩图标；优先按区域找，再按 aria-label 兜底。
-	const area = document.querySelector('[class*="_settingsArea"]')
-	const scoped = area?.querySelector('button, [role="button"]')
-	if (scoped instanceof HTMLElement) {
-		scoped.click()
-		return
-	}
 	const candidates = [...document.querySelectorAll('button, [role="button"]')]
-	const target = candidates.find((element) => {
+	const direct = candidates.find((element) => {
+		if (element.closest('.dos-root')) return false
 		const label = element.getAttribute('aria-label') ?? ''
 		const text = (element.textContent ?? '').trim()
-		return /settings|设置/i.test(label) || /^(settings|设置)$/i.test(text)
+		return /^(settings|设置)$/i.test(label) || /^(settings|设置)$/i.test(text)
 	})
-	if (target instanceof HTMLElement) target.click()
+	if (direct instanceof HTMLElement) {
+		direct.click()
+		return
+	}
+	// 0.2.1-rc.3 起 `sidebar.settings` 槽位变成账号菜单；先展开，再点菜单里的 Settings。
+	const account = document.querySelector('[class*="_settingsArea"] button[aria-haspopup="menu"], button[aria-label="Account menu"]')
+	if (!(account instanceof HTMLElement)) return
+	account.click()
+	window.setTimeout(() => {
+		const item = [...document.querySelectorAll('[role="menuitem"]')].find((element) =>
+			/^(settings|设置)$/i.test((element.textContent ?? '').trim()),
+		)
+		if (item instanceof HTMLElement) item.click()
+	}, 120)
 }
 
 /** 一次生命周期内共享的运行时：DOM 层、字段引擎、偏好、宿主主题。 */

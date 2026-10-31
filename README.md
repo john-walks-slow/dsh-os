@@ -91,6 +91,11 @@ DeepSeek Harness OS：一套覆盖**整个** DSH Web GUI 的主题 —— 会话
    - 键盘 `Esc` / 点击屏幕：立即跳过开机自检序列。
    - 底部任务栏：`FIELD` 背景动效开关、`BOOT` 重播、`WS/ALL` 统计口径、`SYS/DARK/LIGHT` 明暗、`SETTINGS` 入口；右侧滚动条显示真实事件（CPU 打满、内存压力、网络突发、会话起停）。
 
+11. **移动端完整 HUD**
+    - 窄屏不再只剩两条状态：任务栏 `HUD` 或点状态条打开底部抽屉，`SYS / WS / SESS / LEDGER` 四块窗格、账本时间窗、`WS/ALL` 口径、明暗与自检都能访问。
+    - 顶栏在 412px 下不压字；任务栏与抽屉按钮按触控尺寸放大；账本自动收起 TPS / 占比两列。
+    - 会话遥测条窄屏只留模型、压力计与年龄，明细收进点开的卡片；卡片改成两列，不超视口、不压正文。
+
 ---
 
 ## 安装
@@ -135,6 +140,8 @@ cd dsh-os && npm install && npm run build
 拿不到的行界面会直接隐藏，并在 SYS 面板的 ARCH 行标注 `node:os`，不会挂一排 `--`。
 Windows 上 `link:` 路径用正斜杠即可，例如 `"dsh-os": "link:C:/Users/you/dsh-os"`。
 
+宿主半边由 `.github/workflows/host.yml` 在 `ubuntu-latest` 与 `windows-latest` 上跑同一份 `e2e/host.mjs`：真实 Windows runner 上验证 CPU / 内存 / 磁盘读数、能力位、工作区路径归一化与账本聚合。
+
 ### 数据与权限
 
 - **只读**本机 `/proc`、`/sys`、`statfs` 拿系统指标，并**只读** DSH 自己的会话投影缓存（`<DSH_HOME>/storages/session_projcache`）做账本聚合；全部在本机内循环，不联网。
@@ -163,8 +170,9 @@ Windows 上 `link:` 路径用正斜杠即可，例如 `"dsh-os": "link:C:/Users/
 ```bash
 npm run build          # 构建 lib/index.js 与 lib/client.js
 npm run typecheck      # tsc --noEmit
-npm run e2e            # dsh-e2e 隔离实例 + 无头冒烟测试（首页桌面层，含夹具播种）
-npm run e2e:session    # 会话视图检查：遥测条真实读数、明细卡不压正文、卡片内换墨
+npm run test:host      # 宿主端点跨平台校验（临时 DSH_HOME，不启动 GUI）
+npm run e2e            # dsh-e2e 隔离实例 + 无头冒烟测试（首页桌面层 + 412px HUD，含夹具播种）
+npm run e2e:session    # 会话视图检查：遥测条真实读数、明细卡不压正文、卡片内换墨、窄屏遥测条
 npm run e2e:shots      # 重新生成 screenshots/ 里的官方截图
 ```
 

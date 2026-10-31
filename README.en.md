@@ -91,6 +91,11 @@ Reskinning goes through DSH's official theme token overlay (`ctx.theme.overrideT
     - Press `Esc` or click anywhere to skip the boot self-test.
     - Taskbar: `FIELD` background toggle, `BOOT` replay, `WS/ALL` scope, `SYS/DARK/LIGHT` ink, `SETTINGS`; the ticker on the right streams real events (CPU saturation, memory pressure, network bursts, sessions starting and stopping).
 
+11. **Complete mobile HUD**
+    - Narrow screens are no longer limited to two status bars: tap `HUD` or either status strip to open a bottom sheet with the `SYS / WS / SESS / LEDGER` panels, ledger windows, `WS/ALL` scope, ink and boot controls.
+    - The rail no longer collides at 412px; taskbar and sheet controls use touch-sized targets; the ledger drops the TPS/share columns.
+    - The in-session telemetry strip keeps only model, pressure and age on narrow screens; the detail card uses a two-column grid and never overflows the viewport or covers the conversation.
+
 ---
 
 ## Install
@@ -134,6 +139,8 @@ Then point your profile's `package.json` at `"dsh-os": "link:/absolute/path/dsh-
 
 Rows that a platform cannot provide are hidden entirely (the SYS panel tags the ARCH row with `node:os`) instead of showing a column of `--`. On Windows, `link:` paths accept forward slashes, e.g. `"dsh-os": "link:C:/Users/you/dsh-os"`.
 
+`.github/workflows/host.yml` runs the same `e2e/host.mjs` on `ubuntu-latest` and `windows-latest`: a real Windows runner verifies CPU/memory/disk readings, capability flags, workspace path normalization and ledger aggregation.
+
 ### Data & permissions
 
 - **Read-only** access to `/proc`, `/sys` and `statfs` for host metrics, plus **read-only** access to DSH's own session projection cache (`<DSH_HOME>/storages/session_projcache`) for the ledger. Everything stays on the machine; nothing is sent anywhere.
@@ -162,8 +169,9 @@ Rows that a platform cannot provide are hidden entirely (the SYS panel tags the 
 ```bash
 npm run build          # build lib/index.js and lib/client.js
 npm run typecheck      # tsc --noEmit
-npm run e2e            # isolated dsh-e2e instance + headless smoke test (seeds fixtures)
-npm run e2e:session    # session view checks: real telemetry readings, detail card not squeezing the body, in-card ink change
+npm run test:host      # host endpoints against a temp DSH_HOME (no GUI)
+npm run e2e            # isolated dsh-e2e instance + headless smoke test at desktop and 412px
+npm run e2e:session    # session view checks: real telemetry readings, card not squeezing the body, in-card ink, narrow strip
 npm run e2e:shots      # regenerate the official screenshots in screenshots/
 ```
 

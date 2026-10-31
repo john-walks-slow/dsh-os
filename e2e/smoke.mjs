@@ -413,11 +413,13 @@ await page.waitForTimeout(500)
 check('HUD 抽屉可以关闭', (await page.locator('.dos-sheet').count()) === 0)
 
 console.log('mobile host settings')
+// e2e home 没配 provider，宿主会弹登录引导遮罩；它不属于被测插件，先隐藏再点。
+await page.addStyleTag({ content: 'div[role="presentation"]:has([class*="_mask_"]) { display: none !important; }' })
 await page.locator('.dos-taskbar').getByRole('button', { name: 'settings', exact: true }).click()
-await page.waitForTimeout(1400)
+await page.waitForTimeout(1600)
 const hostSettings = await page.evaluate(() =>
-	[...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].some((dialog) =>
-		(dialog.textContent ?? '').includes('Harness OS'),
+	[...document.querySelectorAll('[class*="VOzbGW_panel"]')].some((panel) =>
+		(panel.textContent ?? '').includes('Harness OS'),
 	),
 )
 check('移动端任务栏可以直接打开宿主设置', hostSettings)

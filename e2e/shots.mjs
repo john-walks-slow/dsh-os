@@ -34,7 +34,7 @@ const SHOTS = [
 	{ name: 'home-light', width: 1440, height: 900, settings: { pattern: 'rain' }, chip: 'LIGHT' },
 	{ name: 'home-field', width: 1440, height: 900, settings: { pattern: 'field' }, chip: 'DARK' },
 	{ name: 'home-dshchan', width: 1440, height: 900, settings: { pattern: 'dshchan' }, chip: 'DARK' },
-	{ name: 'home-mobile', width: 412, height: 915, settings: { pattern: 'rain' }, chip: 'DARK' },
+	{ name: 'home-mobile', width: 412, height: 915, settings: { pattern: 'rain' }, chip: 'DARK', hud: 'LEDGER' },
 ]
 
 const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] })
@@ -81,6 +81,14 @@ async function prepare(shot) {
 
 for (const shot of SHOTS) {
 	const { context, page } = await prepare(shot)
+	if (shot.hud) {
+		// 窄屏截图要展示"功能完整"的 HUD 抽屉，而不只是两条压缩状态。
+		await clearNotice(page)
+		await page.locator('.dos-taskbar .dos-chip', { hasText: 'HUD' }).click({ timeout: 8000 })
+		await page.waitForTimeout(600)
+		await page.locator('.dos-sheet-tab', { hasText: shot.hud }).click({ timeout: 5000 })
+		await page.waitForTimeout(1200)
+	}
 	await page.screenshot({ path: `screenshots/${shot.name}.png` })
 	console.log(`✓ screenshots/${shot.name}.png`)
 	await context.close()
@@ -164,9 +172,17 @@ for (const shot of [
 		.click({ timeout: 8000 })
 		.catch(() => null)
 	await page.waitForTimeout(1400)
-	// 侧边栏入口的点击会被引导弹窗的残余遮罩挡住，直接派发点击最稳
+	// 0.2.1-rc.3 起侧边栏底部是账号菜单：先展开，再点菜单里的 Settings。
+	// 残余遮罩会挡住真实 pointer 事件，直接派发 click 最稳。
 	await page.evaluate(() => {
 		document.querySelector('[class*="_settingsArea"] button, [class*="_settingsArea"] [role="button"]')?.click()
+	})
+	await page.waitForTimeout(350)
+	await page.evaluate(() => {
+		const item = [...document.querySelectorAll('[role="menuitem"]')].find((element) =>
+			/^(Settings|设置)$/i.test((element.textContent ?? '').trim()),
+		)
+		item?.click()
 	})
 	await page.waitForSelector('[class*="VOzbGW_panel"]', { timeout: 8000 }).catch(() => null)
 	await page.waitForTimeout(1600)
@@ -179,12 +195,15 @@ for (const shot of [
 {
 	const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 })
 	await context.addInitScript(() => {
-		localStorage.setItem('dsh-os:settings', JSON.stringify({ enabled: true, boot: true, scope: 'space', pattern: 'rain' }))
+		localStorage.setItem('dsh-os:settings', JSON.stringify({ enabled: true, boot: true, scope: 'space', pattern: 'rain', tone: 'dark' }))
 	})
 	const page = await context.newPage()
 	await page.goto(url, { waitUntil: 'domcontentloaded' })
 	await page.waitForSelector('.dos-boot', { timeout: 15000 })
-	await page.waitForTimeout(1200)
+	// 未配置 provider 时宿主会在开机序列上方弹引导卡（带 8px 模糊遮罩）。
+	// 它由 React 状态控制，摘 DOM 会被立刻补回来；截图期间用样式隐藏整层最稳。
+	await page.addStyleTag({ content: 'div[role="presentation"]:has([class*="_mask_"]) { display: none !important; }' })
+	await page.waitForTimeout(950)
 	await page.screenshot({ path: 'screenshots/boot.png' })
 	console.log('✓ screenshots/boot.png')
 	await context.close()
