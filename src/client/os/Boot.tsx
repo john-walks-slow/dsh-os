@@ -31,17 +31,26 @@ interface BootRow {
 	tone?: 'ok'
 }
 
-function buildRows(metrics: MetricsPayload | null, harness: HarnessPayload): BootRow[] {
+function buildRows(metrics: MetricsPayload | null, harness: HarnessPayload, fps: number): BootRow[] {
 	const host = metrics?.host
+	const mountPath = host?.platform === 'win32' ? 'C:\\' : '/'
 	const rows: BootRow[] = [
-		{ tag: 'mount', key: '/', value: metrics ? `${bytes(metrics.disk.total)} · ${percent((metrics.disk.used / Math.max(1, metrics.disk.total)) * 100)} used` : '…' },
+		{
+			tag: 'mount',
+			key: mountPath,
+			value: metrics && metrics.disk.total > 0 ? `${bytes(metrics.disk.total)} · ${percent((metrics.disk.used / metrics.disk.total) * 100)} used` : 'unavailable',
+		},
 		{ tag: 'cpu', key: host?.model ?? '…', value: host ? `${host.cores} cores` : '…' },
 		{ tag: 'mem', key: 'main', value: metrics ? `${bytes(metrics.mem.total * 1024)} · ${percent(metrics.mem.percent)} in use` : '…' },
-		{ tag: 'net', key: metrics?.cap?.net ? metrics.net.iface : 'host stack', value: metrics ? 'link up · telemetry bound' : '…' },
+		{
+			tag: 'net',
+			key: metrics?.cap?.net ? metrics.net.iface : 'host stack',
+			value: metrics ? (metrics.cap.net ? 'link up · telemetry bound' : 'node:os · no packet counters') : '…',
+		},
 		{ tag: 'harn', key: 'plugin tree', value: 'ok' },
 		{ tag: 'harn', key: 'session catalogue', value: `${harness.all.sessions} indexed · ${harness.all.running} running` },
 		{ tag: 'harn', key: 'token ledger', value: `${harness.models.all.length} models · ${harness.all.tokens.input + harness.all.tokens.output} tokens` },
-		{ tag: 'glyph', key: 'field topology', value: 'mounted · 12 fps' },
+		{ tag: 'glyph', key: 'field topology', value: fps > 0 ? `mounted · ${fps} fps` : 'mounted · idle' },
 		{ tag: 'node', key: metrics ? `pid ${metrics.node.pid}` : 'pid …', value: metrics ? `${bytes(metrics.node.rss)} rss · ${duration(metrics.node.uptimeSec)} up` : '…' },
 		{ tag: 'boot', key: 'complete', value: 'entering harness', tone: 'ok' },
 	]
@@ -51,13 +60,15 @@ function buildRows(metrics: MetricsPayload | null, harness: HarnessPayload): Boo
 export function Boot({
 	metrics,
 	harness,
+	fps,
 	onDone,
 }: {
 	metrics: MetricsPayload | null
 	harness: HarnessPayload
+	fps: number
 	onDone: () => void
 }): JSX.Element {
-	const rows = buildRows(metrics, harness)
+	const rows = buildRows(metrics, harness, fps)
 	const [revealed, setRevealed] = useState(1)
 	const [leaving, setLeaving] = useState(false)
 	const done = useRef(false)
@@ -106,7 +117,7 @@ export function Boot({
 				<span>
 					build <b>2026.10-{String(Math.floor(((metrics?.t ?? Date.now()) / 60000) % 9999)).padStart(4, '0')}</b>
 				</span>
-				<span>{metrics ? `${metrics.host.arch} · ${metrics.host.kernel}` : 'arm64 · linux'}</span>
+				<span>{metrics ? `${metrics.host.arch} · ${metrics.host.kernel}` : 'host metrics pending'}</span>
 			</div>
 			<div className="dos-rule" style={{ opacity: 0.5 }} />
 			<div className="dos-boot-log">

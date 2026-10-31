@@ -39,7 +39,7 @@ const ROW_H = 16
 function systemRows(
 	height: number,
 	cores: number,
-	caps: { freq: boolean; swap: boolean; net: boolean; load: boolean },
+	caps: { freq: boolean; swap: boolean; net: boolean; load: boolean; disk: boolean },
 ): Set<string> {
 	const cpuBlock = ROW_H * 2 + Math.ceil(Math.max(1, cores) / 2) * 12
 	const memBlock = ROW_H * 2 + 3
@@ -50,7 +50,7 @@ function systemRows(
 		['arch', ROW_H, true],
 		['net', ROW_H * 2, caps.net],
 		['swap', ROW_H, caps.swap],
-		['disk', ROW_H, true],
+		['disk', ROW_H, caps.disk],
 		['load', ROW_H, caps.load],
 		['up', ROW_H, true],
 	]
@@ -92,6 +92,7 @@ export function SystemPanel({
 			swap: cap ? cap.swap : true,
 			net: cap ? cap.net : true,
 			load: cap ? cap.load : true,
+			disk: cap ? cap.disk : true,
 		},
 	)
 	const showFreq = rows.has('freq')
@@ -318,15 +319,17 @@ export function SessionsPanel({
 	onOpen,
 	now,
 	compact,
+	limit,
 }: {
 	sessions: HarnessSessionRow[]
 	style?: CSSProperties
 	onOpen: (id: string) => void
 	now: number
 	compact?: boolean
+	/** 移动端抽屉里可以多列几条；默认沿用桌面窗格的 2/3 条。 */
+	limit?: number
 }): JSX.Element {
-	const limit = compact ? 2 : 3
-	const shown = Math.min(limit, sessions.length)
+	const shown = Math.min(limit ?? (compact ? 2 : 3), sessions.length)
 	return (
 		<Panel title="SESSIONS · RECENT" meta={shown === sessions.length ? `${sessions.length}` : `${shown}/${sessions.length}`} style={style}>
 			{sessions.length === 0 ? (
@@ -334,7 +337,7 @@ export function SessionsPanel({
 					<span className="dos-k">no sessions yet</span>
 				</div>
 			) : (
-				sessions.slice(0, limit).map((session) => (
+				sessions.slice(0, shown).map((session) => (
 					<div
 						className="dos-session"
 						key={session.id}
@@ -432,12 +435,12 @@ export function ModelLedgerPanel({
 			<div className="dos-ledger">
 				<div className="dos-ledger-head">
 					<span>model</span>
-					<span className="n">sess</span>
+					<span className="n dos-ledger-c-sess">sess</span>
 					<span className="n">input</span>
 					<span className="n">output</span>
 					<span className="n">cache</span>
-					<span className="n">tps</span>
-					<span className="n">share</span>
+					<span className="n dos-ledger-c-tps">tps</span>
+					<span className="n dos-ledger-c-share">share</span>
 				</div>
 				{visible.length === 0 ? (
 					<div className="dos-ledger-empty">
@@ -461,12 +464,12 @@ export function ModelLedgerPanel({
 								}}
 							>
 								<span className="t">{shorten(label, compact ? 20 : 30)}</span>
-								<span className="n">{row.sessions}</span>
+								<span className="n dos-ledger-c-sess">{row.sessions}</span>
 								<span className="n">{tokens(row.input)}</span>
 								<span className="n">{tokens(row.output)}</span>
 								<span className="n">{percent(row.cacheRatio * 100)}</span>
-								<span className="n">{row.tps !== null ? row.tps.toFixed(0) : '--'}</span>
-								<span className="n">
+								<span className="n dos-ledger-c-tps">{row.tps !== null ? row.tps.toFixed(0) : '--'}</span>
+								<span className="n dos-ledger-c-share">
 									<Meter value={(total / peak) * 100} width={6} tone="ghost" />
 								</span>
 							</div>
@@ -475,12 +478,12 @@ export function ModelLedgerPanel({
 				)}
 				<div className="dos-ledger-total">
 					<span>total</span>
-					<span className="n">{usage.sessions}</span>
+					<span className="n dos-ledger-c-sess">{usage.sessions}</span>
 					<span className="n">{tokens(usage.input)}</span>
 					<span className="n">{tokens(usage.output)}</span>
 					<span className="n">{percent(ratio)}</span>
-					<span className="n" />
-					<span className="n" />
+					<span className="n dos-ledger-c-tps" />
+					<span className="n dos-ledger-c-share" />
 				</div>
 			</div>
 			{!compact && (

@@ -7,7 +7,7 @@
  * @module dsh-os/os/Desktop
  */
 
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { clock, date, duration, percent, tokens } from '../format'
 import type { Settings, ToneChoice } from '../settings'
 import type { Geometry, HarnessPayload, LedgerWindow, LogLine, MetricsPayload } from '../types'
@@ -50,6 +50,20 @@ const TONE_OPTIONS: { key: ToneChoice; label: string; hint: string }[] = [
 	{ key: 'light', label: 'LIGHT', hint: '纸面蓝图' },
 ]
 
+type MobileTab = 'sys' | 'ws' | 'sessions' | 'ledger'
+
+const MOBILE_TABS: { key: MobileTab; label: string }[] = [
+	{ key: 'sys', label: 'SYS' },
+	{ key: 'ws', label: 'WS' },
+	{ key: 'sessions', label: 'SESS' },
+	{ key: 'ledger', label: 'LEDGER' },
+]
+
+const SCOPE_OPTIONS = [
+	{ key: 'space' as const, label: 'WS', hint: '只看当前工作区' },
+	{ key: 'all' as const, label: 'ALL', hint: '全机所有工作区' },
+]
+
 export function Desktop({
 	metrics,
 	harness,
@@ -64,6 +78,7 @@ export function Desktop({
 }: DesktopProps): JSX.Element {
 	const { col, hero } = geometry
 	const narrow = col.w < 640
+	const tiny = col.w < 300
 	const dense = col.w < 780 || col.h < 640
 	const railTop = col.y + 9
 	const contentStart = railTop + 33
@@ -79,6 +94,24 @@ export function Desktop({
 	const showLedger = !dense && settings.ledger && ledgerWidth >= 420
 	const compact = panelHeight < 272
 
+	const [sheet, setSheet] = useState<MobileTab | null>(null)
+	const tabs = MOBILE_TABS.filter((tab) => tab.key !== 'ledger' || settings.ledger)
+	const activeTab = sheet !== null && tabs.some((tab) => tab.key === sheet) ? sheet : null
+	useEffect(() => {
+		if (!dense) setSheet(null)
+	}, [dense])
+	useEffect(() => {
+		if (sheet === null) return
+		const onKey = (event: KeyboardEvent): void => {
+			if (event.key === 'Escape') setSheet(null)
+		}
+		globalThis.addEventListener('keydown', onKey)
+		return () => globalThis.removeEventListener('keydown', onKey)
+	}, [sheet])
+	const sheetPanelStyle: CSSProperties = { position: 'relative', left: 0, top: 0, width: '100%', height: 'auto' }
+	const sheetBodyHeight = Math.max(300, Math.round(col.h * 0.5))
+	const sheetPanelTitle = tabs.find((tab) => tab.key === activeTab)?.label ?? 'HUD'
+
 	const scope = settings.scope
 	const stats = scope === 'all' ? harness.all : harness.space
 	const models = scope === 'all' ? harness.models.all : harness.models.space
@@ -89,7 +122,14 @@ export function Desktop({
 	return (
 		<div className="dos-root" data-phase={active ? 'live' : 'off'}>
 			{/* 顶栏 */}
-			<div className="dos-rail" style={{ left: Math.round(col.x + 56), top: Math.round(railTop), width: Math.round(col.w - 112) }}>
+			<div
+				className="dos-rail"
+				style={{
+					left: Math.round(col.x + (narrow ? 10 : 56)),
+					top: Math.round(railTop),
+					width: Math.round(col.w - (narrow ? 20 : 112)),
+				}}
+			>
 				<div className="dos-rail-left">
 					<span className="dos-mark">
 						▚▞ <b>DSH-OS</b>
@@ -110,7 +150,7 @@ export function Desktop({
 							<b>{tokens(stats.today.input + stats.today.output)}</b> tok today
 						</span>
 					)}
-					<span className="dos-clock">{clock(now)}</span>
+					{!tiny && <span className="dos-clock">{clock(now)}</span>}
 					{!narrow && <span>{date(now)}</span>}
 				</div>
 			</div>
@@ -150,10 +190,19 @@ export function Desktop({
 				</>
 			)}
 
-			{/* 窄屏：两条压缩状态 */}
+			{/* 窄屏：两条压缩状态；点任一条打开完整 HUD */}
 			{dense && (
 				<>
-					<div className="dos-compact" style={box(leftX, contentStart, col.w - 32, 20)}>
+					<div
+						className="dos-compact"
+						style={box(leftX, contentStart, col.w - 32, 20)}
+						role="button"
+						tabIndex={0}
+						onClick={() => setSheet('sys')}
+						onKeyDown={(event) => {
+							if (event.key === 'Enter') setSheet('sys')
+						}}
+					>
 						<span>
 							CPU <b>{metrics ? percent(metrics.cpu.total) : '--'}</b>
 						</span>
@@ -161,10 +210,14 @@ export function Desktop({
 						<span>
 							MEM <b>{metrics ? percent(metrics.mem.percent) : '--'}</b>
 						</span>
-						<span className="sep">|</span>
-						<span>
-							SESS <b>{stats.running}/{stats.sessions}</b>
-						</span>
+						{!tiny && (
+							<>
+								<span className="sep">|</span>
+								<span>
+									SESS <b>{stats.running}/{stats.sessions}</b>
+								</span>
+							</>
+						)}
 						<span className="sep">|</span>
 						<span>
 							TOK <b>{tokens(stats.today.input + stats.today.output)}</b>
@@ -178,12 +231,89 @@ export function Desktop({
 							</>
 						)}
 					</div>
-					<div className="dos-compact" style={{ ...box(leftX, bottomTop, col.w - 32, 20), justifyContent: 'space-between' }}>
+					<div
+						className="dos-compact"
+						style={{ ...box(leftX, bottomTop, col.w - 32, 20), justifyContent: 'space-between' }}
+						role="button"
+						tabIndex={0}
+						onClick={() => setSheet('sys')}
+						onKeyDown={(event) => {
+							if (event.key === 'Enter') setSheet('sys')
+						}}
+					>
 						<span className="dos-ticker">{lastLog?.msg ?? 'telemetry'}</span>
 						<span>
 							UP <b>{metrics ? duration(metrics.host.uptimeSec) : '--'}</b>
 						</span>
 					</div>
+				</>
+			)}
+
+			{/* 窄屏完整 HUD：底部抽屉，四块窗格随时可看 */}
+			{dense && activeTab !== null && (
+				<>
+					<div className="dos-sheet-scrim" onClick={() => setSheet(null)} />
+					<section
+						className="dos-sheet"
+						role="dialog"
+						aria-modal="true"
+						aria-label="HUD 监视器"
+						style={{ left: Math.round(col.x), width: Math.round(col.w) }}
+					>
+						<header className="dos-sheet-head">
+							<span className="dos-mark" style={{ fontSize: 11 }}>
+								▚▞ <b>DSH-OS</b>
+							</span>
+							<span className="dos-sheet-context">{sheetPanelTitle}</span>
+							<button type="button" className="dos-sheet-close" onClick={() => setSheet(null)} aria-label="关闭 HUD">
+								×
+							</button>
+						</header>
+						<nav className="dos-sheet-tabs" role="tablist" aria-label="HUD 面板">
+							{tabs.map((tab) => (
+								<button
+									key={tab.key}
+									type="button"
+									role="tab"
+									aria-selected={activeTab === tab.key}
+									className="dos-sheet-tab"
+									data-on={activeTab === tab.key ? '1' : '0'}
+									onClick={() => setSheet(tab.key)}
+								>
+									{tab.label}
+								</button>
+							))}
+						</nav>
+						<div className="dos-sheet-body">
+							{activeTab === 'sys' && <SystemPanel metrics={metrics} fps={fps} height={sheetBodyHeight} style={sheetPanelStyle} />}
+							{activeTab === 'ws' && <WorkspacePanel harness={harness} metrics={metrics} scope={scope} now={now} style={sheetPanelStyle} />}
+							{activeTab === 'sessions' && (
+								<SessionsPanel sessions={sessions} now={now} onOpen={actions.openSession} limit={8} style={sheetPanelStyle} />
+							)}
+							{activeTab === 'ledger' && (
+								<ModelLedgerPanel
+									harness={harness}
+									models={models}
+									stats={stats}
+									window={window}
+									onWindow={actions.setWindow}
+									scope={scope}
+									onOpen={actions.openSession}
+									style={sheetPanelStyle}
+								/>
+							)}
+						</div>
+						<footer className="dos-sheet-foot">
+							<Seg options={SCOPE_OPTIONS} value={scope} onPick={actions.setScope} label="统计口径" />
+							<Seg options={TONE_OPTIONS} value={settings.tone} onPick={actions.setTone} label="明暗" />
+							<button type="button" className="dos-chip" onClick={actions.replayBoot}>
+								BOOT
+							</button>
+							<button type="button" className="dos-chip" onClick={actions.openSettings}>
+								SETTINGS
+							</button>
+						</footer>
+					</section>
 				</>
 			)}
 
@@ -195,26 +325,31 @@ export function Desktop({
 				<span className="dos-mark" style={{ fontSize: 10 }}>
 					▚ DSH-OS {!narrow && <span style={{ color: 'var(--dos-ink-faint)' }}>2.0</span>}
 				</span>
+				{dense && (
+					<button
+						className="dos-chip"
+						data-on={activeTab !== null ? '1' : '0'}
+						onClick={() => setSheet(activeTab !== null ? null : 'sys')}
+						type="button"
+						aria-label={activeTab !== null ? '关闭 HUD' : '打开 HUD'}
+					>
+						HUD
+					</button>
+				)}
 				<button className="dos-chip" data-on={settings.pattern !== 'off' ? '1' : '0'} onClick={actions.toggleField} type="button">
 					field
 				</button>
-				<button className="dos-chip" onClick={actions.openSettings} type="button">
-					settings
-				</button>
+				{!tiny && (
+					<button className="dos-chip" onClick={actions.openSettings} type="button">
+						settings
+					</button>
+				)}
 				{!narrow && (
 					<>
 						<button className="dos-chip" onClick={actions.replayBoot} type="button">
 							boot
 						</button>
-						<Seg
-							options={[
-								{ key: 'space' as const, label: 'WS', hint: '只看当前工作区' },
-								{ key: 'all' as const, label: 'ALL', hint: '全机所有工作区' },
-							]}
-							value={scope}
-							onPick={actions.setScope}
-							label="统计口径"
-						/>
+						<Seg options={SCOPE_OPTIONS} value={scope} onPick={actions.setScope} label="统计口径" />
 						<Seg options={TONE_OPTIONS} value={settings.tone} onPick={actions.setTone} label="明暗" />
 						<span className="dos-ticker">{lastLog ? `${clock(lastLog.at)} · ${lastLog.msg}` : 'telemetry 2s'}</span>
 						<span className="dos-keys">
@@ -222,11 +357,6 @@ export function Desktop({
 							<kbd>esc</kbd> skip
 						</span>
 					</>
-				)}
-				{narrow && (
-					<span className="dos-keys" style={{ marginLeft: 'auto' }}>
-						<kbd>`</kbd>
-					</span>
 				)}
 			</div>
 		</div>

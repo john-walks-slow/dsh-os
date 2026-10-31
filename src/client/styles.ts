@@ -287,14 +287,79 @@ html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_add"] 
 .dos-ledger-empty { color: var(--dos-ink-faint); font-size: 10px; padding: 6px 0; }
 
 /* ── 窄屏 ──────────────────────────────────────────────────────────── */
-.dos-compact { position: absolute; display: flex; align-items: center; gap: 10px; padding: 4px 8px; background: var(--dos-bar-bg); border: 1px solid rgba(var(--dos-rgb),.2); clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); font-size: 9px; letter-spacing: .12em; color: var(--dos-ink-dim); overflow: hidden; white-space: nowrap; }
+.dos-compact { position: absolute; display: flex; align-items: center; gap: 10px; padding: 4px 8px; background: var(--dos-bar-bg); border: 1px solid rgba(var(--dos-rgb),.2); clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); font-size: 9px; letter-spacing: .12em; color: var(--dos-ink-dim); overflow: hidden; white-space: nowrap; pointer-events: auto; cursor: pointer; }
 .dos-compact b { color: var(--dos-cy); font-weight: 500; }
 .dos-compact .sep { color: var(--dos-cy-faint); }
+.dos-compact:focus-visible { outline: 1px solid var(--dos-cy); outline-offset: 1px; }
+
+/* 触控目标：所有可点元件禁用双击缩放延迟与点击高亮 */
+.dos-chip, .dos-seg-item, .dos-session, .dos-ledger-row, .dos-strip-toggle,
+.dos-strip-action, .dos-sheet-tab, .dos-sheet-close, .dos-compact {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 移动端完整 HUD 抽屉 ──────────────────────────────────────────── */
+.dos-taskbar { z-index: 32; }
+.dos-sheet-scrim {
+  position: fixed; inset: 0 0 26px 0; z-index: 28; pointer-events: auto;
+  background: var(--dos-scrim-b);
+  backdrop-filter: blur(1px);
+}
+.dos-sheet {
+  position: fixed; bottom: 26px; z-index: 30; display: flex; flex-direction: column;
+  max-height: min(72vh, 680px); pointer-events: auto;
+  background: var(--dos-bar-bg);
+  border-top: 1px solid var(--dos-edge);
+  box-shadow: 0 -18px 50px -20px rgba(0,0,0,.55);
+}
+.dos-sheet-head {
+  flex: none; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px;
+  border-bottom: 1px solid rgba(var(--dos-rgb), .14);
+}
+.dos-sheet-context { margin-left: auto; color: var(--dos-ink-faint); font-size: 9px; letter-spacing: .2em; text-transform: uppercase; }
+.dos-sheet-close {
+  width: 30px; height: 26px; padding: 0; cursor: pointer;
+  font: inherit; font-size: 15px; line-height: 1; color: var(--dos-ink-dim);
+  background: transparent; border: 1px solid var(--dos-panel-line);
+}
+.dos-sheet-close:hover { color: var(--dos-cy); border-color: var(--dos-cy); }
+.dos-sheet-tabs {
+  flex: none; display: flex; gap: 2px; padding: 4px 8px 0;
+  border-bottom: 1px solid rgba(var(--dos-rgb), .14);
+}
+.dos-sheet-tab {
+  flex: 1; height: 30px; padding: 0; cursor: pointer;
+  font: inherit; font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--dos-ink-faint); background: transparent; border: none;
+  border-bottom: 2px solid transparent;
+}
+.dos-sheet-tab:hover { color: var(--dos-ink); }
+.dos-sheet-tab[data-on="1"] { color: var(--dos-cy); border-bottom-color: var(--dos-cy); background: rgba(var(--dos-rgb), .06); }
+.dos-sheet-body {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 8px;
+}
+.dos-sheet-body .dos-panel { height: auto !important; overflow: visible; }
+.dos-sheet-foot {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 6px 8px; border-top: 1px solid rgba(var(--dos-rgb), .14);
+}
 
 @media (max-width: 720px) {
   .dos-mark-sub { display: none; }
   .dos-rail { gap: 8px; }
-  .dos-rail-right { gap: 8px; }
+  .dos-rail-right { gap: 8px; font-size: 9px; }
+  .dos-chip { min-height: 22px; padding: 3px 7px; }
+  .dos-sheet { max-height: 78vh; }
+  .dos-sheet-tabs { padding: 4px 6px 0; }
+  .dos-sheet-tab { font-size: 8.5px; letter-spacing: .12em; }
+  .dos-sheet-body { padding: 6px; }
+  .dos-sheet-foot { gap: 5px; padding: 5px 6px; }
+  .dos-sheet-foot .dos-chip { min-height: 26px; padding: 4px 8px; }
+  /* 窄屏账本：保留 model / sessions / input / output / cache，收起 tps 与占比 */
+  .dos-ledger-head, .dos-ledger-row, .dos-ledger-total { grid-template-columns: minmax(0,1fr) 32px 58px 58px 42px; gap: 5px; font-size: 9.5px; }
+  .dos-ledger-c-tps, .dos-ledger-c-share { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -393,6 +458,9 @@ html.dsh-os-live.dsh-os-skin-composer [class*="_composerStack"] [class*="_add"] 
 .dso-reset:hover { color: var(--dsw-alias-label-primary, #111); border-color: var(--dsw-alias-border-l4, #aaa); }
 @media (max-width: 620px) {
   .dso-patterns { grid-template-columns: 1fr 1fr; }
+  .dso-field { flex-wrap: wrap; }
+  .dso-field-text { flex: 1 1 180px; }
+  .dso-footer { flex-wrap: wrap; gap: 8px; }
 }
 /* ══ 全应用主题：结构性皮肤 ═════════════════════════════════════════════
  *
@@ -446,6 +514,7 @@ html.dsh-os-theme[data-dos-strip-card] [data-conversation-scroll] {
 
 .dos-strip { position: absolute; inset: 0 0 auto 0; pointer-events: none; z-index: 6; }
 .dos-strip-bar {
+  box-sizing: border-box;
   display: flex; align-items: center; gap: 6px; height: 21px; padding: 0 8px;
   pointer-events: auto;
   font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono CJK SC", monospace;
@@ -507,4 +576,26 @@ html.dsh-os-theme[data-dos-strip-card] [data-conversation-scroll] {
 .dos-strip-action[data-on="1"] { color: var(--dos-chip-on-ink); background: var(--dos-cy); border-color: var(--dos-cy); }
 .dos-strip-seg-switch { display: inline-flex; gap: 3px; }
 .dos-strip-card-foot .dos-strip-dim { margin-left: auto; font-size: 9px; }
+
+/* ── 窄屏：遥测条只留模型 / 压力 / 年龄，明细收进卡片 ─────────────── */
+@media (max-width: 720px) {
+  html.dsh-os-theme[data-dos-strip] [data-conversation-scroll] { padding-top: 29px; }
+  html.dsh-os-theme[data-dos-strip-card] [data-conversation-scroll] { padding-top: 0; }
+  .dos-strip-bar { height: 24px; gap: 5px; padding: 0 6px; overflow: hidden; }
+  .dos-strip-workspace, .dos-strip-detail { display: none; }
+  .dos-strip-toggle { width: 24px; height: 20px; }
+  .dos-strip-card { width: 100%; max-width: none; padding: 8px; }
+  .dos-strip-card-head b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dos-strip-card-head span { flex: none; }
+  .dos-strip-grid { grid-template-columns: 1fr 1fr; gap: 5px 10px; }
+  .dos-strip-card-foot { flex-wrap: wrap; row-gap: 4px; }
+  .dos-strip-action { min-height: 24px; padding: 3px 7px; }
+  .dos-strip-seg { grid-template-columns: 64px 1fr 42px; }
+  .dos-boot-log .dots { display: none; }
+  .dos-boot-row .v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dos-boot-row { gap: 6px; }
+}
+@media (max-width: 400px) {
+  .dos-strip-age { display: none; }
+}
 `

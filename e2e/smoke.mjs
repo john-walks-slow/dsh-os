@@ -32,6 +32,19 @@ async function dismissNotices(page) {
 	}
 }
 
+
+/** 关掉迟到的引导弹窗/遮罩：它会在页面加载数秒后出现，挡住窄屏任务栏。 */
+async function clearBlockingOverlay(page) {
+	const close = page.getByRole('button', { name: /^(close|关闭)$/i })
+	if (await close.count()) await close.first().click({ timeout: 2000 }).catch(() => null)
+	await page.evaluate(() => {
+		for (const overlay of document.querySelectorAll('div[role="presentation"]')) {
+			if (overlay.querySelector('[class*="_mask_"]')) overlay.remove()
+		}
+	})
+	await page.waitForTimeout(300)
+}
+
 async function fetchHarness(ws = '') {
 	const response = await fetch(`http://127.0.0.1:${port}/plugins/dsh-os/harness${ws ? `?ws=${encodeURIComponent(ws)}` : ''}`)
 	return response.json()
@@ -328,17 +341,88 @@ check('` 恢复桌面层', await page.evaluate(() => document.documentElement.cl
 
 console.log('narrow')
 await page.setViewportSize({ width: 412, height: 915 })
+await page.waitForTimeout(600)
+await clearBlockingOverlay(page)
 await page.waitForTimeout(1400)
 const narrow = await page.evaluate(() => ({
 	panels: document.querySelectorAll('.dos-panel').length,
 	compact: document.querySelectorAll('.dos-compact').length,
 	taskbar: Boolean(document.querySelector('.dos-taskbar')),
+	hud: Boolean(document.querySelector('.dos-taskbar .dos-chip[aria-label="打开 HUD"], .dos-taskbar .dos-chip[aria-label="关闭 HUD"]')),
 	overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+	railOverlap: (() => {
+		const left = document.querySelector('.dos-rail-left')?.getBoundingClientRect()
+		const right = document.querySelector('.dos-rail-right')?.getBoundingClientRect()
+		return Boolean(left && right && left.right > right.left + 1)
+	})(),
+	touch: [...document.querySelectorAll('.dos-taskbar .dos-chip')].map((chip) => Math.round(chip.getBoundingClientRect().height)),
 }))
 check('窄屏收起窗格', narrow.panels === 0, `panels=${narrow.panels}`)
 check('窄屏显示压缩状态条', narrow.compact >= 1 && narrow.taskbar)
 check('窄屏无横向溢出', !narrow.overflow)
+check('窄屏顶栏不互相压字', !narrow.railOverlap)
+check('窄屏任务栏有 HUD 入口', narrow.hud)
+check('窄屏任务栏触控高度足够', narrow.touch.every((height) => height >= 22), narrow.touch.join(','))
 await page.screenshot({ path: 'e2e-artifacts/home-412.png' })
+
+console.log('mobile hud')
+await page.locator('.dos-taskbar .dos-chip', { hasText: 'HUD' }).click()
+await page.waitForTimeout(700)
+const hud = await page.evaluate(() => ({
+	sheet: Boolean(document.querySelector('.dos-sheet')),
+	tabs: [...document.querySelectorAll('.dos-sheet-tab')].map((tab) => tab.textContent?.trim()),
+	panels: document.querySelectorAll('.dos-sheet .dos-panel').length,
+	overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+	bodyOverflow: (() => {
+		const body = document.querySelector('.dos-sheet-body')
+		return Boolean(body && body.scrollWidth > body.clientWidth + 1)
+	})(),
+}))
+check('HUD 抽屉可以打开', hud.sheet && hud.panels === 1, JSON.stringify(hud))
+check('移动端四个页签齐全', hud.tabs.join(',') === 'SYS,WS,SESS,LEDGER', hud.tabs.join(','))
+check('抽屉打开后仍无横向溢出', !hud.overflow && !hud.bodyOverflow)
+await page.locator('.dos-sheet-tab', { hasText: 'LEDGER' }).click()
+await page.waitForTimeout(500)
+const ledger = await page.evaluate(() => ({
+	rows: document.querySelectorAll('.dos-sheet .dos-ledger-row').length,
+	hidden: [...document.querySelectorAll('.dos-ledger-c-tps, .dos-ledger-c-share')].every((cell) => getComputedStyle(cell).display === 'none'),
+	overflow: (() => {
+		const body = document.querySelector('.dos-sheet-body')
+		return Boolean(body && body.scrollWidth > body.clientWidth + 1)
+	})(),
+}))
+check('移动端账本有真实数据', ledger.rows >= 2, `rows=${ledger.rows}`)
+check('移动端账本收起次要列后不溢出', ledger.hidden && !ledger.overflow)
+await page.locator('.dos-sheet-tab', { hasText: 'SESS' }).click()
+await page.waitForTimeout(400)
+check('移动端最近会话可打开', (await page.locator('.dos-sheet .dos-session').count()) >= 1)
+await page.locator('.dos-sheet-tab', { hasText: 'WS' }).click()
+await page.waitForTimeout(400)
+check('移动端工作区总览可见', (await page.locator('.dos-sheet .dos-panel').count()) === 1)
+// 抽屉底部也要能切口径与明暗
+await page.locator('.dos-sheet-foot').getByRole('button', { name: 'ALL', exact: true }).click()
+await page.waitForTimeout(800)
+await page.locator('.dos-sheet-foot').getByRole('button', { name: 'LIGHT', exact: true }).click()
+await page.waitForTimeout(1200)
+check('移动端可切浅色墨色', (await page.evaluate(() => document.documentElement.getAttribute('data-dos-tone'))) === 'light')
+await page.locator('.dos-sheet-foot').getByRole('button', { name: 'DARK', exact: true }).click()
+await page.waitForTimeout(1000)
+await page.screenshot({ path: 'e2e-artifacts/home-412-hud.png' })
+await page.locator('.dos-sheet-close').click()
+await page.waitForTimeout(500)
+check('HUD 抽屉可以关闭', (await page.locator('.dos-sheet').count()) === 0)
+
+console.log('mobile host settings')
+await page.locator('.dos-taskbar').getByRole('button', { name: 'settings', exact: true }).click()
+await page.waitForTimeout(1400)
+const hostSettings = await page.evaluate(() =>
+	[...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].some((dialog) =>
+		(dialog.textContent ?? '').includes('Harness OS'),
+	),
+)
+check('移动端任务栏可以直接打开宿主设置', hostSettings)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(500)
 
 check('无控制台错误', errors.length === 0, errors.slice(0, 3).join(' | '))
 await browser.close()

@@ -189,10 +189,19 @@ function makeLogger() {
 
 /** 打开宿主设置面板：点侧边栏最下面那颗 Settings。 */
 function openHostSettings(): void {
-	const sidebar = document.querySelector('[class*="_sidebarCol"]')
-	if (!sidebar) return
-	const candidates = [...sidebar.querySelectorAll('button, [role="button"]')]
-	const target = candidates.find((element) => /^(settings|设置)$/i.test((element.textContent ?? '').trim()))
+	// 窄屏侧边栏会折成图标栏，设置入口只剩图标；优先按区域找，再按 aria-label 兜底。
+	const area = document.querySelector('[class*="_settingsArea"]')
+	const scoped = area?.querySelector('button, [role="button"]')
+	if (scoped instanceof HTMLElement) {
+		scoped.click()
+		return
+	}
+	const candidates = [...document.querySelectorAll('button, [role="button"]')]
+	const target = candidates.find((element) => {
+		const label = element.getAttribute('aria-label') ?? ''
+		const text = (element.textContent ?? '').trim()
+		return /settings|设置/i.test(label) || /^(settings|设置)$/i.test(text)
+	})
 	if (target instanceof HTMLElement) target.click()
 }
 
@@ -592,7 +601,7 @@ function DesktopView({ runtime }: { runtime: Runtime }): JSX.Element {
 				active={live}
 				actions={actions}
 			/>
-			{booting && live && <Boot metrics={metrics} harness={harness} onDone={finishBoot} />}
+			{booting && live && <Boot metrics={metrics} harness={harness} fps={fps} onDone={finishBoot} />}
 		</>
 	)
 }

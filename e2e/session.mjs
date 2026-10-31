@@ -149,6 +149,51 @@ console.log('dismiss on outside click')
 await page.mouse.click(700, 700)
 await page.waitForTimeout(700)
 check('点正文即收起明细卡', (await page.locator('.dos-strip-card').count()) === 0)
+
+console.log('mobile strip')
+await page.setViewportSize({ width: 412, height: 915 })
+await page.waitForTimeout(1800)
+const mobile = await page.evaluate(() => {
+	const bar = document.querySelector('.dos-strip-bar')
+	const toggle = document.querySelector('.dos-strip-toggle')
+	const detail = document.querySelector('.dos-strip-detail')
+	const barBox = bar?.getBoundingClientRect()
+	const toggleBox = toggle?.getBoundingClientRect()
+	return {
+		bar: Boolean(bar),
+		barHeight: barBox ? Math.round(barBox.height) : 0,
+		toggle: toggleBox ? `${Math.round(toggleBox.width)}x${Math.round(toggleBox.height)}` : '',
+		detailHidden: detail ? getComputedStyle(detail).display === 'none' : false,
+		overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+	}
+})
+check('窄屏遥测条仍在', mobile.bar && mobile.barHeight === 24, JSON.stringify(mobile))
+check('窄屏收起明细字段，只留模型/压力/年龄', mobile.detailHidden)
+check('窄屏遥测条触控目标足够大', mobile.toggle === '24x20', mobile.toggle)
+check('窄屏会话视图无横向溢出', !mobile.overflow)
+await page.locator('.dos-strip-toggle').click({ timeout: 5000 })
+await page.waitForTimeout(1000)
+const mobileCard = await page.evaluate(() => {
+	const card = document.querySelector('.dos-strip-card')?.getBoundingClientRect()
+	const scroller = document.querySelector('[data-conversation-scroll]')?.getBoundingClientRect()
+	const actions = document.querySelector('.dos-strip-card-foot')?.getBoundingClientRect()
+	return {
+		open: Boolean(card),
+		width: card ? Math.round(card.width) : 0,
+		view: window.innerWidth,
+		cardBottom: card ? Math.round(card.bottom) : null,
+		scrollerTop: scroller ? Math.round(scroller.top) : null,
+		footWidth: actions ? Math.round(actions.width) : 0,
+		overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+	}
+})
+check('窄屏明细卡展开且不超出视口', mobileCard.open && mobileCard.width <= mobileCard.view - 12, JSON.stringify(mobileCard))
+check('窄屏明细卡仍不压正文', mobileCard.cardBottom !== null && mobileCard.scrollerTop !== null && mobileCard.cardBottom <= mobileCard.scrollerTop + 1, JSON.stringify(mobileCard))
+check('窄屏明细卡底部操作不横向溢出', mobileCard.footWidth <= mobileCard.width, JSON.stringify(mobileCard))
+check('窄屏展开后仍无横向溢出', !mobileCard.overflow)
+await page.locator('.dos-strip-toggle').click({ timeout: 5000 })
+await page.waitForTimeout(500)
+
 check('无控制台错误', true)
 
 await browser.close()

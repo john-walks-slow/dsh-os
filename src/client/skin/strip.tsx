@@ -108,7 +108,7 @@ export function readStrip(session: StripSession | null): StripData | null {
 	return {
 		id: session.id,
 		title: session.title ?? session.displayTitle ?? session.id,
-		workspace: (session.cwd ?? '').split('/').filter(Boolean).pop() ?? '',
+		workspace: (session.cwd ?? '').split(/[\\/]/).filter(Boolean).pop() ?? '',
 		running: session.running === true,
 		model: stringAt(model, 'lastUsed', 'model'),
 		preset: stringAt(values, 'agentPreset'),
@@ -190,7 +190,10 @@ export function SessionStrip({
 		// 卡片高度会随投影刷新而变（上下文构成的行数），用 ResizeObserver 跟住它，
 		// 否则让出的空间会偏小，正文又会被压住。
 		const sync = (): void => {
-			root.style.setProperty('--dos-strip-room', `${Math.round(21 + card.getBoundingClientRect().height + 10)}px`)
+			// 条子高度在窄屏会加一档（触控目标）；用实测值，让位才不会差几个像素。
+			const bar = card.parentElement?.querySelector('.dos-strip-bar')
+			const barHeight = bar?.getBoundingClientRect().height ?? 21
+			root.style.setProperty('--dos-strip-room', `${Math.round(barHeight + card.getBoundingClientRect().height + 10)}px`)
 		}
 		sync()
 		root.setAttribute('data-dos-strip-card', '')
@@ -229,37 +232,37 @@ export function SessionStrip({
 			<div className="dos-strip-bar">
 				<i className="dos-led" data-tone={data.running ? 'hot' : 'idle'} data-pulse={data.running ? '1' : undefined} />
 				<span className="dos-strip-model">{data.model ? shorten(data.model, 12) : data.preset ?? 'default'}</span>
-				{data.workspace && <span className="dos-strip-dim">{data.workspace}</span>}
+				{data.workspace && <span className="dos-strip-dim dos-strip-workspace">{data.workspace}</span>}
 				<span className="dos-strip-sep">│</span>
 				<Gauge value={percentUsed} />
 				<span className="dos-strip-num" data-tone={percentUsed >= 88 ? 'hot' : percentUsed >= 70 ? 'warn' : undefined}>
 					{percentUsed > 0 ? percent(percentUsed) : '--'}
 				</span>
 				{data.window && (
-					<span className="dos-strip-dim">
+					<span className="dos-strip-dim dos-strip-detail">
 						{tokens(data.projected ?? data.pressure ?? 0)}/{tokens(data.window)}
 					</span>
 				)}
-				<span className="dos-strip-sep">│</span>
-				<span className="dos-strip-dim">in</span>
-				<span className="dos-strip-num">{tokens(data.input)}</span>
-				<span className="dos-strip-dim">out</span>
-				<span className="dos-strip-num">{tokens(data.output)}</span>
+				<span className="dos-strip-sep dos-strip-detail">│</span>
+				<span className="dos-strip-dim dos-strip-detail">in</span>
+				<span className="dos-strip-num dos-strip-detail">{tokens(data.input)}</span>
+				<span className="dos-strip-dim dos-strip-detail">out</span>
+				<span className="dos-strip-num dos-strip-detail">{tokens(data.output)}</span>
 				{cache > 0 && (
 					<>
-						<span className="dos-strip-dim">cache</span>
-						<span className="dos-strip-num">{percent(cache)}</span>
+						<span className="dos-strip-dim dos-strip-detail">cache</span>
+						<span className="dos-strip-num dos-strip-detail">{percent(cache)}</span>
 					</>
 				)}
 				{speed !== null && (
 					<>
-						<span className="dos-strip-sep">│</span>
-						<span className="dos-strip-num">{speed.toFixed(0)}</span>
-						<span className="dos-strip-dim">tps</span>
+						<span className="dos-strip-sep dos-strip-detail">│</span>
+						<span className="dos-strip-num dos-strip-detail">{speed.toFixed(0)}</span>
+						<span className="dos-strip-dim dos-strip-detail">tps</span>
 					</>
 				)}
 				<span className="dos-strip-spacer" />
-				<span className="dos-strip-dim">{ago(data.updatedAt, now)}</span>
+				<span className="dos-strip-dim dos-strip-age">{ago(data.updatedAt, now)}</span>
 				<button
 					type="button"
 					className="dos-strip-toggle"

@@ -225,7 +225,7 @@ export class MetricsSampler {
 			slab: 0,
 		}
 		const load = readLoad()
-		const disk = readDisk() ?? { total: 0, used: 0, free: 0 }
+		const disk = readDisk()
 		const net = readNet(this.iface)
 		const memory = {
 			...mem,
@@ -237,7 +237,7 @@ export class MetricsSampler {
 		return {
 			t: Date.now(),
 			host: { ...facts, uptimeSec: load.uptimeSec },
-			cap: platformCaps(),
+			cap: platformCaps({ disk: disk !== null }),
 			cpu: {
 				total: this.cpuPercent,
 				cores: this.corePercents,
@@ -253,7 +253,7 @@ export class MetricsSampler {
 				rxTotal: net?.rxBytes ?? 0,
 				txTotal: net?.txBytes ?? 0,
 			},
-			disk,
+			disk: disk ?? { total: 0, used: 0, free: 0 },
 			power: readPower(),
 			proc: { ...this.procInfo, total: this.procInfo.total || readProcessCount() },
 			node: {

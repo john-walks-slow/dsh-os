@@ -20,7 +20,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BATCH_SIZE = 200
@@ -182,6 +182,26 @@ function shortError(error: unknown): string {
 function modelLabel(record: SessionRecord): string {
 	if (record.provider && record.model) return `${record.provider}/${record.model}`
 	return record.model || record.provider
+}
+
+/**
+ * 工作区比较键。
+ *
+ * 同一个目录在 Windows 上可能以 `C:\a\b` / `C:/a/b` / 不同盘符大小写出现；
+ * 会话投影里存的是 DSH 当时拿到的字符串，客户端传回来的 `?ws=` 也来自它，
+ * 但两者不保证逐字节一致。比较前统一分隔符、去掉尾部斜杠，Windows 再折叠大小写。
+ */
+function workspaceKey(path: string): string {
+	if (!path) return ''
+	const unified = path.replace(/\\/g, '/').replace(/\/+$/, '')
+	return process.platform === 'win32' ? unified.toLowerCase() : unified
+}
+
+/** 工作区显示名：两种分隔符都认，根目录回退到盘符本身。 */
+function workspaceName(path: string): string {
+	if (!path) return ''
+	const unified = path.replace(/\\/g, '/').replace(/\/+$/, '')
+	return unified.slice(unified.lastIndexOf('/') + 1) || unified
 }
 
 function usageOf(row: ModelUsageRow): number {
@@ -413,7 +433,7 @@ function toSessionRow(record: SessionRecord, now: number): HarnessSessionRow {
 		id: record.id,
 		title: record.title || record.id,
 		cwd: record.cwd,
-		workspace: record.cwd ? basename(record.cwd) : '',
+		workspace: workspaceName(record.cwd),
 		model: modelLabel(record),
 		input: record.input,
 		output: record.output,
@@ -512,12 +532,13 @@ export class HarnessIndex {
 		const now = Date.now()
 		const rows = [...this.records.values()]
 		const path = workspace ?? ''
-		const spaceRows = path ? rows.filter((record) => record.cwd === path) : rows
+		const scopeKey = workspaceKey(path)
+		const spaceRows = scopeKey ? rows.filter((record) => workspaceKey(record.cwd) === scopeKey) : rows
 
 		const modelsAll = buildModels(rows, now)
 		const all = aggregate(rows, now, modelsAll)
-		const modelsSpace = path ? buildModels(spaceRows, now) : modelsAll
-		const space = path ? aggregate(spaceRows, now, modelsSpace) : all
+		const modelsSpace = scopeKey ? buildModels(spaceRows, now) : modelsAll
+		const space = scopeKey ? aggregate(spaceRows, now, modelsSpace) : all
 		const sessionsAll = byLastActive(rows.filter(listable), now)
 
 		return {
@@ -530,11 +551,11 @@ export class HarnessIndex {
 				partial: !this.found,
 				error: this.error,
 			},
-			scope: { path, name: path ? basename(path) : '' },
+			scope: { path, name: workspaceName(path) },
 			space,
 			all,
 			models: { space: modelsSpace, all: modelsAll },
-			sessions: path ? byLastActive(spaceRows.filter(listable), now) : sessionsAll,
+			sessions: scopeKey ? byLastActive(spaceRows.filter(listable), now) : sessionsAll,
 			sessionsAll,
 			running: byLastActive(rows.filter((record) => !record.blank && isRunning(record, now)), now),
 		}

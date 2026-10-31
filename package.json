@@ -27,7 +27,8 @@
     "e2e": "dsh-e2e run e2e/smoke.mjs",
     "e2e:session": "dsh-e2e run e2e/session.mjs",
     "prepack": "npm run build",
-    "e2e:shots": "dsh-e2e run e2e/shots.mjs"
+    "e2e:shots": "dsh-e2e run e2e/shots.mjs",
+    "test:host": "node e2e/host.mjs"
   },
   "dsh": {
     "bundle": {

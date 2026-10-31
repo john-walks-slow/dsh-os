@@ -112,14 +112,14 @@ export interface PlatformCaps {
 	load: boolean
 }
 
-export function platformCaps(): PlatformCaps {
+export function platformCaps(overrides: { disk?: boolean } = {}): PlatformCaps {
 	const linux = platform() === 'linux'
 	return {
 		perCore: cpus().length > 0,
 		freq: linux,
 		swap: linux,
 		net: linux,
-		disk: true,
+		disk: overrides.disk ?? true,
 		power: linux,
 		proc: linux,
 		load: platform() !== 'win32',
@@ -288,7 +288,8 @@ export function readDisk(path = diskRoot()): DiskSnapshot | null {
 		const total = stats.blocks * stats.bsize
 		// 用 bfree（文件系统空闲）而不是 bavail（非特权用户可用）：保留块会让 used 超过 total
 		const free = stats.bfree * stats.bsize
-		return { total, free, used: total - free }
+		if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(free) || free < 0) return null
+		return { total, free, used: Math.max(0, total - free) }
 	} catch {
 		return null
 	}
@@ -386,8 +387,12 @@ function readCpuModel(): string {
 		const match = new RegExp(`^${key}\\s*:\\s*(.+)$`, 'm').exec(text)
 		if (match?.[1]?.trim()) return match[1].trim()
 	}
-	const osModel = cpus()[0]?.model
-	return osModel && osModel !== 'unknown' ? osModel : `ARM64 ${cpus().length}-core`
+	const osModel = cpus()[0]?.model?.trim()
+	if (osModel && osModel !== 'unknown') return osModel
+	// Windows 的 os.cpus() 偶尔给不出型号；环境变量里通常有到这里为止最完整的标识。
+	const windowsModel = process.env.PROCESSOR_IDENTIFIER?.trim()
+	if (windowsModel) return windowsModel
+	return `${process.arch} ${cpus().length}-core`
 }
 
 let facts: HostFacts | null = null
